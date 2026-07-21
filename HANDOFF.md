@@ -89,6 +89,29 @@ Known coordination points: Cross-paper game factories depend only on `CrossPaper
 
 ---
 
+### DEV A PHASE CHECKPOINT
+
+Phase: 5 - Learning interaction hardening
+Dev A checkpoint SHA: `a15d1f0dd8bf7df73751aaaa6de649ebab5a9ee4`
+Branch: `phase-1-a`
+Features completed: explicit Show Evidence controls on scored games; focus-visible learning controls; keyboard button paths for matching and ordering; Escape behavior and focus restoration for learning overlays; viewport-safe selection actions; compact narrow-screen overlays; reduced-motion-safe instant source navigation; and session-local mastery/progress display.
+Tests: 182 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Limitations: no browser surface is available in this CLI environment for visual/screen-reader walkthroughs. Learning progress remains session-local because no cross-team progress persistence repository contract has been agreed; no competing storage was introduced.
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 5 SHA: `a15d1f0dd8bf7df73751aaaa6de649ebab5a9ee4`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Latest main changes since the prior snapshot: none.
+Integration commit SHA: `d3cc514ba835c724f199be786bb51883247308a1`
+Conflicts: none; the frozen SHA was already an ancestor.
+Resolution: no merge delta; empty checkpoint records the exact inspected snapshot after the Phase 5 gate.
+Tests after checkpoint: 182 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: no general Dev B accessibility or workspace persistence system was changed. The completed branch is ready for final merge after verifying `main` remains at the frozen SHA.
+
+---
+
 ## What this is, in one paragraph
 
 A PDF reader for arXiv AI/ML papers. A sentence on page 3 says "as shown in Figure 1";
@@ -116,7 +139,7 @@ is off by default and labelled. Justify any new LLM call against §2 before addi
 | 7 | Keyboard, zoom, dark mode, auto-dock | done |
 | 8 | Accuracy harness | done |
 
-**186 tests pass** — 151 Python, 35 TypeScript. Everything was written test-first.
+**333 tests pass** — 151 Python, 182 TypeScript. Everything was written test-first.
 Typecheck and production build are clean.
 
 ---
