@@ -120,7 +120,12 @@ cd apps/web && npm run dev
 - **Never render a dead affordance.** Unmatched mention → keep in manifest with
   `asset_id: null` and log a warning, but no clickable hotspot. Unresolved reference →
   plain text, no open button.
-- Schema changes start in `packages/schema/manifest.schema.json`, then regenerate TS types.
+- Schema changes start in `packages/schema/manifest.schema.json`, then regenerate TS types
+  with `npm run gen:schema` from `apps/web`. Never edit the generated `manifest.ts`.
+- **This repo names no AI vendor.** It is a hackathon entry. Agent guidance belongs in this
+  file; harness-specific files (`CLAUDE.md`, `.cursorrules`) stay untracked via
+  `.git/info/exclude`, not `.gitignore`, so even the ignore rules name nobody. Commit
+  messages included.
 - Don't add features not in the spec or the plan. If something seems obviously missing,
   raise it as an open question rather than building it (spec §14).
 
