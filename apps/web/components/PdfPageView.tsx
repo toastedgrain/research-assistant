@@ -17,12 +17,13 @@ interface Props {
   mentions: Mention[];
   citations: Citation[];
   textItems: PageTextItem[];
-  onOpenAsset: (assetId: string, mentionId: string) => void;
-  onMentionCue: (assetId: string | null) => void;
+  onOpenAsset: (assetId: string, mentionId: string, pin: boolean) => void;
+  onMentionActivity: (assetId: string, mentionId: string, active: boolean) => void;
   onOpenCitation: (citation: Citation) => void;
   onTextSelection: (selection: CapturedSelection) => void;
   highlightedAssetId: string | null;
-  cueAssetId: string | null;
+  flashAssetId: string | null;
+  assetRegions: Array<{ assetId: string; bbox: BBox }>;
   evidenceBBox?: BBox;
 }
 
@@ -43,11 +44,12 @@ export default function PdfPageView({
   citations,
   textItems,
   onOpenAsset,
-  onMentionCue,
+  onMentionActivity,
   onOpenCitation,
   onTextSelection,
-  highlightedAssetId,
-  cueAssetId,
+  highlightedAssetId: _highlightedAssetId,
+  flashAssetId,
+  assetRegions,
   evidenceBBox,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -157,38 +159,51 @@ export default function PdfPageView({
         />
       )}
 
+      {assetRegions.map((region) => (
+        <div
+          key={region.assetId}
+          data-asset-region={region.assetId}
+          aria-hidden="true"
+          className={`pointer-events-none absolute z-20 rounded-xl transition-shadow duration-500 ${
+            flashAssetId === region.assetId ? "shadow-[0_0_0_4px_rgba(59,91,219,0.35)]" : "shadow-none"
+          }`}
+          style={{
+            left: `${region.bbox[0] * 100}%`,
+            top: `${region.bbox[1] * 100}%`,
+            width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
+            height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
+          }}
+        />
+      ))}
+
       {mentions
         .filter((mention) => mention.assetId !== null && mention.rect !== null)
-        .map((mention, i) => (
-          <button
-            key={`m-${i}`}
-            data-mention-asset={mention.assetId as string}
-            data-mention-id={`${mention.assetId}:p${pageIndex}:m${mention.index}`}
-            type="button"
-            title={`Open ${mention.text}`}
-            onClick={() =>
-              onOpenAsset(
-                mention.assetId as string,
-                `${mention.assetId}:p${pageIndex}:m${mention.index}`,
-              )
-            }
-            onMouseEnter={() => onMentionCue(mention.assetId)}
-            onMouseLeave={() => onMentionCue(null)}
-            onFocus={() => onMentionCue(mention.assetId)}
-            onBlur={() => onMentionCue(null)}
-            className={`absolute z-30 cursor-pointer border-b transition-colors ${
-              highlightedAssetId === mention.assetId || cueAssetId === mention.assetId
-                ? "border-solid border-sky-500 bg-sky-500/10"
-                : "border-dotted border-sky-500/40 hover:border-solid hover:border-sky-500"
-            }`}
-            style={{
-              left: `${mention.rect![0] * 100}%`,
-              top: `${mention.rect![1] * 100}%`,
-              width: `${(mention.rect![2] - mention.rect![0]) * 100}%`,
-              height: `${(mention.rect![3] - mention.rect![1]) * 100}%`,
-            }}
-          />
-        ))}
+        .map((mention, i) => {
+          const mentionId = `${mention.assetId}:p${pageIndex}:m${mention.index}`;
+          const mentionStyle = {
+            left: `${mention.rect![0] * 100}%`,
+            top: `${mention.rect![1] * 100}%`,
+            width: `${(mention.rect![2] - mention.rect![0]) * 100}%`,
+            height: `${(mention.rect![3] - mention.rect![1]) * 100}%`,
+          };
+
+          return (
+            <button
+              key={`m-${i}`}
+              data-mention-id={mentionId}
+              data-mention-asset={mention.assetId as string}
+              type="button"
+              title={`Open ${mention.text}`}
+              onMouseEnter={() => onMentionActivity(mention.assetId as string, mentionId, true)}
+              onMouseLeave={() => onMentionActivity(mention.assetId as string, mentionId, false)}
+              onFocus={() => onMentionActivity(mention.assetId as string, mentionId, true)}
+              onBlur={() => onMentionActivity(mention.assetId as string, mentionId, false)}
+              onClick={() => onOpenAsset(mention.assetId as string, mentionId, true)}
+              className="absolute z-30 cursor-pointer rounded-t border-b-2 border-indigo-500/55 bg-indigo-500/10 text-indigo-700 transition-colors hover:bg-indigo-500/20"
+              style={mentionStyle}
+            />
+          );
+        })}
 
       {citations
         .filter((citation) => citation.openable && citation.rect !== null)

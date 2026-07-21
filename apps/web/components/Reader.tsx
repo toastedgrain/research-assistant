@@ -361,6 +361,13 @@ export default function Reader({ digest }: { digest: string }) {
     [manifest],
   );
 
+  const openPopup = useCallback((_assetId: string, _mentionId: string | null, _pin: boolean) => {}, []);
+  const handleMentionActivity = useCallback(
+    (_assetId: string, _mentionId: string, _active: boolean) => {},
+    [],
+  );
+  const flashAssetId: string | null = null;
+
   // Track the page at the viewport centre, for reverse-link highlighting and auto-dock.
   useEffect(() => {
     const container = scrollRef.current;
@@ -536,8 +543,8 @@ export default function Reader({ digest }: { digest: string }) {
               mentions={analysis[index]?.mentions ?? []}
               citations={analysis[index]?.citations ?? []}
               textItems={analysis[index]?.items ?? []}
-              onOpenAsset={(assetId, mentionId) => openCard(assetId, true, mentionId)}
-              onMentionCue={setCueAsset}
+              onOpenAsset={(assetId, mentionId) => openPopup(assetId, mentionId, true)}
+              onMentionActivity={(assetId, mentionId, active) => handleMentionActivity(assetId, mentionId, active)}
               onOpenCitation={openCitation}
               onTextSelection={(captured) => {
                 setSelection({ ...captured, menuOpen: true });
@@ -545,7 +552,10 @@ export default function Reader({ digest }: { digest: string }) {
                 setActiveEvidence(null);
               }}
               highlightedAssetId={focused}
-              cueAssetId={cueAsset}
+              flashAssetId={flashAssetId}
+              assetRegions={manifest.assets
+                .filter((asset) => asset.page === index)
+                .map((asset) => ({ assetId: asset.asset_id, bbox: asset.bbox }))}
               evidenceBBox={activeEvidence?.page === index ? activeEvidence.bbox : undefined}
             />
           ))}
