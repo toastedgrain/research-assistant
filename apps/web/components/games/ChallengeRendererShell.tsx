@@ -42,7 +42,8 @@ function initialResponse(challenge: ChallengeSpec, record?: ChallengeReturnRecor
     challenge.payload.kind === "timeline" ||
     challenge.payload.kind === "evolution"
   ) {
-    return { kind: "order", itemIds: challenge.payload.items.map((item) => item.id) };
+    const itemIds = challenge.payload.items.map((item) => item.id);
+    return { kind: "order", itemIds: itemIds.length > 1 ? [itemIds.at(-1) as string, ...itemIds.slice(0, -1)] : itemIds };
   }
   if (challenge.payload.kind === "evidence-hunt") return { kind: "evidence-hunt" };
   return { kind: "choice", choiceIds: [] };
@@ -190,6 +191,7 @@ export default function ChallengeRendererShell({
           <span className="font-medium uppercase">{challenge.type.replaceAll("-", " ")}</span>
           <span>{challenge.difficulty}</span>
           <span>{challenge.mode === "scored" ? "Source-grounded" : "Explore (unscored)"}</span>
+          {challenge.generation?.generated && <span>Generated proposal</span>}
         </div>
         <h2 className="text-sm font-semibold leading-5">{challenge.prompt}</h2>
       </header>
