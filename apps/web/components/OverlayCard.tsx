@@ -54,6 +54,14 @@ export function shouldOpenPopup(
   );
 }
 
+export function shouldReusePopupPosition(existing: PopupState | undefined): boolean {
+  return (
+    existing?.position !== null &&
+    existing?.position !== undefined &&
+    (existing.mode === "open" || existing.mode === "pinned")
+  );
+}
+
 export type PopupEvent =
   | { type: "pin" }
   | { type: "unpin" }
@@ -120,6 +128,7 @@ export function clampPopupPosition(
 interface Props {
   asset: Asset;
   popup: PopupState;
+  dark: boolean;
   mentions: Mention[];
   currentPage: number;
   onMove: (position: { x: number; y: number }) => void;
@@ -170,7 +179,11 @@ export default function OverlayCard(props: Props) {
     <article
       ref={rootRef}
       data-popup-asset={props.asset.asset_id}
-      className="fixed overflow-hidden rounded-[20px] border border-white/95 bg-white/70 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_24px_70px_rgba(15,23,42,0.22)] backdrop-blur-[28px] backdrop-saturate-[1.6] pointer-events-auto dark:border-white/15 dark:bg-slate-900/75"
+      className={`fixed overflow-hidden rounded-[20px] border shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_24px_70px_rgba(15,23,42,0.22)] backdrop-blur-[28px] backdrop-saturate-[1.6] pointer-events-auto ${
+        props.dark
+          ? "border-white/15 bg-slate-900/75"
+          : "border-white/95 bg-white/70"
+      }`}
       style={{
         left: popup.position?.x ?? 0,
         top: popup.position?.y ?? 84,
@@ -198,7 +211,7 @@ export default function OverlayCard(props: Props) {
           {Array.from({ length: 5 }, (_, index) => (
             <i
               key={index}
-              className="h-[3px] w-[3px] rounded-full bg-slate-900 dark:bg-white"
+              className={`h-[3px] w-[3px] rounded-full ${props.dark ? "bg-white" : "bg-slate-900"}`}
             />
           ))}
         </span>
@@ -207,7 +220,11 @@ export default function OverlayCard(props: Props) {
           aria-pressed={popup.mode === "pinned"}
           onPointerDown={onControlPointerDown}
           onClick={() => onPin(popup.mode !== "pinned")}
-          className="grid h-[26px] w-[26px] place-items-center rounded-lg text-slate-500 hover:bg-slate-900/5 aria-pressed:bg-[#3b5bdb] aria-pressed:text-white"
+          className={`grid h-[26px] w-[26px] place-items-center rounded-lg aria-pressed:bg-[#3b5bdb] aria-pressed:text-white ${
+            props.dark
+              ? "text-slate-300 hover:bg-white/10 hover:text-white"
+              : "text-slate-500 hover:bg-slate-900/5"
+          }`}
         >
           <Pin size={14} aria-hidden="true" />
         </button>
@@ -216,7 +233,11 @@ export default function OverlayCard(props: Props) {
           onPointerDown={onControlPointerDown}
           onClick={onDock}
           aria-label={`Minimize ${props.asset.label}`}
-          className="grid h-[26px] w-[26px] place-items-center rounded-lg text-slate-500 hover:bg-slate-900/5"
+          className={`grid h-[26px] w-[26px] place-items-center rounded-lg ${
+            props.dark
+              ? "text-slate-300 hover:bg-white/10 hover:text-white"
+              : "text-slate-500 hover:bg-slate-900/5"
+          }`}
         >
           <Minus size={16} aria-hidden="true" />
         </button>
@@ -231,7 +252,7 @@ export default function OverlayCard(props: Props) {
       </div>
 
       <div className="px-[18px] pb-3 pt-2">
-        <p className="text-[12.5px] leading-[1.55] text-slate-700 dark:text-slate-200">
+        <p className={`text-[12.5px] leading-[1.55] ${props.dark ? "text-slate-200" : "text-slate-700"}`}>
           {props.asset.caption}
         </p>
         <button
@@ -244,7 +265,7 @@ export default function OverlayCard(props: Props) {
         </button>
       </div>
 
-      <footer className="flex flex-wrap items-center gap-1 border-t border-slate-900/10 px-[18px] py-2 dark:border-white/10">
+      <footer className={`flex flex-wrap items-center gap-1 border-t px-[18px] py-2 ${props.dark ? "border-white/10" : "border-slate-900/10"}`}>
         <span className="mr-1 text-[11px] text-slate-400">
           {popup.mode === "pinned" ? "Pinned" : "Auto · fades on scroll"}
         </span>
@@ -256,7 +277,9 @@ export default function OverlayCard(props: Props) {
             className={`rounded-full px-2 py-1 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${
               mention.page === props.currentPage
                 ? "bg-[#3b5bdb] text-white"
-                : "bg-slate-900/5 text-slate-500 hover:bg-slate-900/10 dark:bg-white/10 dark:text-slate-300"
+                : props.dark
+                  ? "bg-white/10 text-slate-300 hover:bg-white/15"
+                  : "bg-slate-900/5 text-slate-500 hover:bg-slate-900/10"
             }`}
           >
             p.{mention.page + 1}

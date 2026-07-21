@@ -7,6 +7,7 @@ import OverlayCard, {
   placePopup,
   shouldCloseCompactOutline,
   shouldOpenPopup,
+  shouldReusePopupPosition,
   transitionPopup,
   type PopupState,
 } from "./OverlayCard";
@@ -66,6 +67,16 @@ describe("shouldOpenPopup", () => {
   });
 });
 
+describe("shouldReusePopupPosition", () => {
+  it("recomputes placement for idle or docked cards and preserves active cards", () => {
+    expect(shouldReusePopupPosition({ ...popup, mode: "idle" })).toBe(false);
+    expect(shouldReusePopupPosition({ ...popup, mode: "docked" })).toBe(false);
+    expect(shouldReusePopupPosition({ ...popup, mode: "open" })).toBe(true);
+    expect(shouldReusePopupPosition({ ...popup, mode: "pinned" })).toBe(true);
+    expect(shouldReusePopupPosition(undefined)).toBe(false);
+  });
+});
+
 describe("placePopup", () => {
   it("returns the same position for identical geometry", () => {
     const input = {
@@ -121,6 +132,20 @@ describe("transitionPopup", () => {
 });
 
 describe("OverlayCard", () => {
+  const renderCard = (dark: boolean) => renderToStaticMarkup(createElement(OverlayCard, {
+    asset,
+    popup,
+    dark,
+    mentions: [{ assetId: "fig-1", kind: "figure", number: "1", page: 4, text: "Figure 1", rect: null, index: 0 }],
+    currentPage: 2,
+    onMove: vi.fn(),
+    onPin: vi.fn(),
+    onDock: vi.fn(),
+    onRaise: vi.fn(),
+    onJumpToAsset: vi.fn(),
+    onJumpToMention: vi.fn(),
+  }));
+
   it("clamps a drag position to the viewport edge inset", () => {
     expect(clampPopupPosition(
       { x: -20, y: 900 },
@@ -130,18 +155,7 @@ describe("OverlayCard", () => {
   });
 
   it("renders a fixed glass popup with opaque crop and source navigation", () => {
-    const markup = renderToStaticMarkup(createElement(OverlayCard, {
-      asset,
-      popup,
-      mentions: [{ assetId: "fig-1", kind: "figure", number: "1", page: 4, text: "Figure 1", rect: null, index: 0 }],
-      currentPage: 2,
-      onMove: vi.fn(),
-      onPin: vi.fn(),
-      onDock: vi.fn(),
-      onRaise: vi.fn(),
-      onJumpToAsset: vi.fn(),
-      onJumpToMention: vi.fn(),
-    }));
+    const markup = renderCard(false);
 
     expect(markup).toContain('data-popup-asset="fig-1"');
     expect(markup).toContain("fixed overflow-hidden rounded-[20px]");
@@ -149,5 +163,30 @@ describe("OverlayCard", () => {
     expect(markup).toContain("Auto · fades on scroll");
     expect(markup).toContain("Jump to Figure 1");
     expect(markup).toContain("p.5");
+  });
+
+  it("renders explicit light glass without media-dark popup classes", () => {
+    const markup = renderCard(false);
+
+    expect(markup).toContain("border-white/95 bg-white/70");
+    expect(markup).toContain("text-slate-700");
+    expect(markup).not.toContain("dark:");
+    expect(markup).toContain("rounded-[12px] bg-white");
+    expect(markup).toContain("w-full bg-white object-contain");
+    expect(markup).not.toContain("invert");
+    expect(markup).not.toContain("filter");
+  });
+
+  it("renders explicit dark glass while keeping the crop opaque white", () => {
+    const markup = renderCard(true);
+
+    expect(markup).toContain("border-white/15 bg-slate-900/75");
+    expect(markup).toContain("text-slate-200");
+    expect(markup).toContain("border-white/10");
+    expect(markup).not.toContain("dark:");
+    expect(markup).toContain("rounded-[12px] bg-white");
+    expect(markup).toContain("w-full bg-white object-contain");
+    expect(markup).not.toContain("invert");
+    expect(markup).not.toContain("filter");
   });
 });

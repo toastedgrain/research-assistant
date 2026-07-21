@@ -21,6 +21,7 @@ import OverlayCard, {
   placePopup,
   shouldCloseCompactOutline,
   shouldOpenPopup,
+  shouldReusePopupPosition,
   transitionPopup,
   type PopupEvent,
   type PopupRect,
@@ -172,9 +173,9 @@ export default function Reader({ digest }: { digest: string }) {
       setPopups((previous) => {
         const existing = previous[assetId];
         if (!shouldOpenPopup(existing, pin)) return previous;
-        const position =
-          existing?.position ??
-          placePopup({
+        const position = shouldReusePopupPosition(existing)
+          ? existing!.position!
+          : placePopup({
             popup: POPUP_SIZE,
             anchor: anchorRect,
             viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -554,11 +555,11 @@ export default function Reader({ digest }: { digest: string }) {
     <div
       className={`relative h-screen overflow-hidden font-sans ${
         dark
-          ? "dark bg-slate-950 text-slate-100"
+          ? "bg-slate-950 text-slate-100"
           : "bg-[linear-gradient(160deg,#f4f6fb_0%,#eef1f8_45%,#e8ecf5_100%)] text-slate-900"
       }`}
     >
-      <header className="fixed left-1/2 top-[22px] z-[220] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 rounded-full border border-white/90 bg-white/65 px-[18px] py-2 shadow-[0_8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl backdrop-saturate-150 sm:gap-3 dark:border-white/15 dark:bg-slate-900/70">
+      <header className={`fixed left-1/2 top-[22px] z-[220] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 rounded-full border px-[18px] py-2 shadow-[0_8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl backdrop-saturate-150 sm:gap-3 ${dark ? "border-white/15 bg-slate-900/70" : "border-white/90 bg-white/65"}`}>
         <span className="h-2 w-2 shrink-0 rounded-full bg-[#3b5bdb]" aria-hidden="true" />
         <h1 className="max-w-[clamp(120px,24vw,360px)] truncate text-[13px] font-semibold">
           {manifest.title || "Untitled paper"}
@@ -568,11 +569,11 @@ export default function Reader({ digest }: { digest: string }) {
             {currentSection}
           </span>
         )}
-        <span className="h-4 w-px shrink-0 bg-slate-900/10 dark:bg-white/10" aria-hidden="true" />
-        <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+        <span className={`h-4 w-px shrink-0 ${dark ? "bg-white/10" : "bg-slate-900/10"}`} aria-hidden="true" />
+        <span className={`shrink-0 text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
           p. {currentPage + 1} / {manifest.page_count}
         </span>
-        <span className="relative hidden h-1 w-[72px] shrink-0 overflow-hidden rounded-full bg-slate-900/10 sm:block dark:bg-white/10">
+        <span className={`relative hidden h-1 w-[72px] shrink-0 overflow-hidden rounded-full sm:block ${dark ? "bg-white/10" : "bg-slate-900/10"}`}>
           <span
             className="absolute inset-y-0 left-0 rounded-full bg-[#3b5bdb]"
             style={{ width: `${Math.max(4, progress * 100)}%` }}
@@ -583,12 +584,12 @@ export default function Reader({ digest }: { digest: string }) {
           onClick={() => setOutlineOpen((open) => !open)}
           aria-label="Toggle outline"
           aria-expanded={outlineOpen}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${dark ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"}`}
           title="Toggle outline (\\)"
         >
           <Menu size={15} aria-hidden="true" />
         </button>
-        <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <label className={`flex shrink-0 items-center gap-1 text-[11px] ${dark ? "text-slate-400" : "text-slate-500"}`}>
           <input
             type="checkbox"
             checked={autoSurface}
@@ -601,7 +602,7 @@ export default function Reader({ digest }: { digest: string }) {
           type="button"
           onClick={() => setDark((on) => !on)}
           aria-label="Toggle dark mode"
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${dark ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-900/5 hover:text-slate-900"}`}
         >
           {dark ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
         </button>
@@ -610,7 +611,7 @@ export default function Reader({ digest }: { digest: string }) {
       {outlineOpen && (
         <nav
           aria-label="Paper outline"
-          className="fixed bottom-6 left-6 top-[84px] z-[215] w-60 overflow-y-auto rounded-[24px] border border-white/90 bg-white/65 p-3 text-sm shadow-[0_16px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/15 dark:bg-slate-900/75"
+          className={`fixed bottom-6 left-6 top-[84px] z-[215] w-60 overflow-y-auto rounded-[24px] border p-3 text-sm shadow-[0_16px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 ${dark ? "border-white/15 bg-slate-900/75" : "border-white/90 bg-white/65"}`}
         >
           <p className="mb-2 px-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             Outline
@@ -626,14 +627,14 @@ export default function Reader({ digest }: { digest: string }) {
                 scrollToPage(section.page);
                 closeCompactOutline();
               }}
-              className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-slate-600 transition-colors hover:bg-slate-900/5 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+              className={`block w-full truncate rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${dark ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-900/5 hover:text-slate-950"}`}
               style={{ paddingLeft: 8 + (section.level - 1) * 12 }}
               title={section.title}
             >
               {section.title}
             </button>
           ))}
-          <hr className="my-3 border-slate-900/10 dark:border-white/10" />
+          <hr className={`my-3 ${dark ? "border-white/10" : "border-slate-900/10"}`} />
           <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             Figures
           </p>
@@ -645,7 +646,7 @@ export default function Reader({ digest }: { digest: string }) {
                 openPopup(asset.asset_id, null, true);
                 closeCompactOutline();
               }}
-              className="block w-full truncate rounded-lg px-2 py-1.5 text-left font-medium text-[#2f4ac2] transition-colors hover:bg-[#3b5bdb]/10 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-indigo-300 dark:hover:bg-white/10"
+              className={`block w-full truncate rounded-lg px-2 py-1.5 text-left font-medium transition-colors focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${dark ? "text-indigo-300 hover:bg-white/10" : "text-[#2f4ac2] hover:bg-[#3b5bdb]/10"}`}
               title={asset.caption}
             >
               {asset.label}
@@ -687,8 +688,8 @@ export default function Reader({ digest }: { digest: string }) {
       </div>
 
       {split && (
-        <aside className="fixed inset-y-0 right-0 z-[1000] flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
-          <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
+        <aside className={`fixed inset-y-0 right-0 z-[1000] flex w-1/2 flex-col border-l ${dark ? "border-neutral-800 bg-neutral-950" : "border-neutral-300 bg-white"}`}>
+          <div className={`flex items-center gap-2 border-b px-3 py-2 ${dark ? "border-neutral-800" : "border-neutral-300"}`}>
             <span className="flex-1 truncate text-sm">{split.title}</span>
             <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
               Close
@@ -711,6 +712,7 @@ export default function Reader({ digest }: { digest: string }) {
               key={popup.assetId}
               asset={asset}
               popup={popup}
+              dark={dark}
               mentions={reverseIndex.get(popup.assetId) ?? []}
               currentPage={currentPage}
               onMove={(position) => updatePopup(popup.assetId, { type: "drag", position })}
@@ -729,7 +731,7 @@ export default function Reader({ digest }: { digest: string }) {
       {dockedPopups.length > 0 && (
         <div
           aria-label="Minimized figures"
-          className="fixed bottom-6 left-1/2 z-[210] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-full border border-white/90 bg-white/60 px-3 py-2 shadow-[0_10px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/15 dark:bg-slate-900/70"
+          className={`fixed bottom-6 left-1/2 z-[210] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-full border px-3 py-2 shadow-[0_10px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 ${dark ? "border-white/15 bg-slate-900/70" : "border-white/90 bg-white/60"}`}
         >
           <span className="px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
             Closed
@@ -742,7 +744,7 @@ export default function Reader({ digest }: { digest: string }) {
                 key={popup.assetId}
                 type="button"
                 onClick={() => restorePopup(popup.assetId)}
-                className="shrink-0 rounded-full border border-[#3b5bdb]/20 bg-[#3b5bdb]/10 px-3 py-1 text-[12.5px] font-semibold text-[#2f4ac2] transition-colors hover:bg-[#3b5bdb]/20 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-indigo-200"
+                className={`shrink-0 rounded-full border border-[#3b5bdb]/20 bg-[#3b5bdb]/10 px-3 py-1 text-[12.5px] font-semibold transition-colors hover:bg-[#3b5bdb]/20 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] ${dark ? "text-indigo-200" : "text-[#2f4ac2]"}`}
                 aria-label={`Restore ${asset.label}`}
               >
                 {asset.label}
