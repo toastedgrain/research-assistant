@@ -16,11 +16,12 @@ import type { ResearchContext } from "../lib/research-context/types";
 import { paperIdOf, type SourceEvidence } from "../lib/evidence/source";
 import type { CapturedSelection } from "../lib/selection/dom";
 import OverlayCard, {
-  capRailCards,
-  cancelRailFrame,
-  layoutRail,
-  type CardState,
-  type RailAnchor,
+  isMentionActive,
+  placePopup,
+  transitionPopup,
+  type PopupEvent,
+  type PopupRect,
+  type PopupState,
 } from "./OverlayCard";
 import PdfPageView from "./PdfPageView";
 import SelectionActionPanel from "./selection/SelectionActionPanel";
@@ -28,9 +29,9 @@ import ReaderLearningLayer from "./learning/ReaderLearningLayer";
 
 const MAX_PAGE_WIDTH = 760;
 const MIN_PAGE_WIDTH = 560;
-const MAX_PINNED_CARDS = 4;
 /** Render the visible page plus one either side: a 40-page paper must not allocate 40 canvases. */
 const RENDER_WINDOW = 1;
+const POPUP_SIZE = { width: 390, height: 336 };
 
 interface PageAnalysis {
   items: PageTextItem[];
@@ -48,6 +49,29 @@ interface SelectionPanelState {
   thread?: ConceptThread;
 }
 
+function visiblePopupRects(
+  state: Record<string, PopupState>,
+  exceptAssetId: string,
+): PopupRect[] {
+  return Object.values(state).flatMap((popup) => {
+    if (
+      popup.assetId === exceptAssetId ||
+      (popup.mode !== "open" && popup.mode !== "pinned")
+    ) {
+      return [];
+    }
+    const element = document.querySelector<HTMLElement>(
+      `[data-popup-asset="${CSS.escape(popup.assetId)}"]`,
+    );
+    const rect = element?.getBoundingClientRect();
+    if (rect) {
+      return [{ x: rect.left, y: rect.top, width: rect.width, height: rect.height }];
+    }
+    if (!popup.position) return [];
+    return [{ ...popup.position, ...POPUP_SIZE }];
+  });
+}
+
 export default function Reader({ digest }: { digest: string }) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -55,18 +79,13 @@ export default function Reader({ digest }: { digest: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const [currentPage, setCurrentPage] = useState(0);
-  const [cards, setCards] = useState<CardState[]>([]);
-  const [railPositions, setRailPositions] = useState<Record<string, number>>({});
-  const [anchorVisibility, setAnchorVisibility] = useState<Record<string, boolean>>({});
-  const [scrollDrivenLayout, setScrollDrivenLayout] = useState(false);
-  const [cueAsset, setCueAsset] = useState<string | null>(null);
-  const [hairlinePath, setHairlinePath] = useState<string | null>(null);
-  const [sheetAsset, setSheetAsset] = useState<string | null>(null);
+  const [popups, setPopups] = useState<Record<string, PopupState>>({});
+  const [autoSurface, setAutoSurface] = useState(true);
+  const [flashAssetId, setFlashAssetId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentSection, setCurrentSection] = useState("");
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
-  const [focused, setFocused] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
-  const [autoDock, setAutoDock] = useState(true);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [split, setSplit] = useState<{ digest: string; title: string } | null>(null);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
@@ -74,10 +93,8 @@ export default function Reader({ digest }: { digest: string }) {
   const [activeEvidence, setActiveEvidence] = useState<SourceEvidence | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const railRef = useRef<HTMLElement | null>(null);
-  const railFrameRef = useRef<number | null>(null);
-  const railPositionsRef = useRef<Record<string, number>>({});
-  const cardOrderRef = useRef(0);
+  const scrollFrameRef = useRef<number | null>(null);
+  const zCounter = useRef(100);
 
   // Load the manifest and the PDF, then analyse every page's text once. The reverse
   // index has to exist before the first click, and scanning text (without rendering) is
@@ -137,138 +154,66 @@ export default function Reader({ digest }: { digest: string }) {
     return buildResearchContext({ manifest, selection: selection.context, pages: analysis, ...(learningIndex ? { index: learningIndex } : {}) });
   }, [analysis, learningIndex, manifest, selection]);
 
-  const openCard = useCallback((assetId: string, hard: boolean, anchorMentionId: string | null = null) => {
-    setCards((previous) => {
-      const existing = previous.find((card) => card.assetId === assetId);
-      if (existing) {
-        return previous.map((card) =>
-          card.assetId === assetId
-            ? {
-                ...card,
-                hard: card.hard || hard,
-                anchorMentionId: anchorMentionId ?? card.anchorMentionId,
-              }
-            : card,
-        );
-      }
-      const kept = hard ? previous : previous.filter((card) => card.hard);
-      const next = [
-        ...kept,
-        {
-          assetId,
-          anchorMentionId,
-          hard,
-          order: cardOrderRef.current++,
-        },
-      ];
-      return capRailCards(next, MAX_PINNED_CARDS);
-    });
-    setFocused(assetId);
-  }, []);
-
-  const closeCard = useCallback((assetId: string) => {
-    setCards((previous) => previous.filter((card) => card.assetId !== assetId));
-    setFocused((current) => (current === assetId ? null : current));
-  }, []);
-
-  const measureRail = useCallback(
-    (fromScroll: boolean) => {
-      railFrameRef.current = null;
-      const rail = railRef.current;
+  const openPopup = useCallback(
+    (assetId: string, mentionId: string | null, pin: boolean) => {
       const scroll = scrollRef.current;
-      if (!rail || !scroll) return;
+      const anchor = mentionId
+        ? scroll?.querySelector<HTMLElement>(
+            `[data-mention-id="${CSS.escape(mentionId)}"]`,
+          )
+        : scroll?.querySelector<HTMLElement>(
+            `[data-mention-asset="${CSS.escape(assetId)}"], [data-asset-region="${CSS.escape(assetId)}"]`,
+          );
+      const anchorRect = anchor?.getBoundingClientRect();
+      if (!anchorRect) return;
 
-      const railRect = rail.getBoundingClientRect();
-      const scrollRect = scroll.getBoundingClientRect();
-      const previousPositions = railPositionsRef.current;
-      const reads = cards.map((card) => {
-        const cardNode = rail.querySelector<HTMLElement>(
-          `[data-rail-card="${CSS.escape(card.assetId)}"]`,
-        );
-        const candidates = Array.from(
-          scroll.querySelectorAll<HTMLElement>(
-            `[data-mention-asset="${CSS.escape(card.assetId)}"]`,
-          ),
-        ).map((node) => ({ node, rect: node.getBoundingClientRect() }));
-        const visible = candidates.filter(
-          ({ rect }) => rect.bottom > scrollRect.top && rect.top < scrollRect.bottom,
-        );
-        const anchored =
-          visible.find(({ node }) => node.dataset.mentionId === card.anchorMentionId) ?? visible[0];
+      setPopups((previous) => {
+        const existing = previous[assetId];
+        const position =
+          existing?.position ??
+          placePopup({
+            popup: POPUP_SIZE,
+            anchor: anchorRect,
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            occupied: visiblePopupRects(previous, assetId),
+          });
         return {
-          card,
-          cardHeight: cardNode?.getBoundingClientRect().height || 160,
-          mentionRect: anchored?.rect ?? null,
+          ...previous,
+          [assetId]: {
+            assetId,
+            mode: pin ? "pinned" : existing?.mode === "pinned" ? "pinned" : "open",
+            position,
+            anchorMentionId: mentionId,
+            z: ++zCounter.current,
+          },
         };
       });
-
-      const anchors: RailAnchor[] = reads.map(({ card, cardHeight, mentionRect }) => ({
-        cardId: card.assetId,
-        anchorY: mentionRect
-          ? mentionRect.top + mentionRect.height / 2 - railRect.top
-          : (previousPositions[card.assetId] ?? 16) + cardHeight / 2,
-        height: cardHeight,
-      }));
-      const positions = layoutRail(anchors, railRect.height);
-      const nextPositions = Object.fromEntries(positions);
-      const nextVisibility = Object.fromEntries(
-        reads.map(({ card, mentionRect }) => [card.assetId, mentionRect !== null]),
-      );
-
-      let nextHairline: string | null = null;
-      if (cueAsset) {
-        const active = reads.find(({ card }) => card.assetId === cueAsset);
-        const y = positions.get(cueAsset);
-        if (active?.mentionRect && y !== undefined) {
-          const startX = railRect.left;
-          const startY = railRect.top + y + active.cardHeight / 2;
-          const endX = active.mentionRect.right;
-          const endY = active.mentionRect.top + active.mentionRect.height / 2;
-          const pull = Math.min(160, Math.max(32, Math.abs(startX - endX) * 0.35));
-          nextHairline = `M ${startX} ${startY} C ${startX - pull} ${startY}, ${endX + pull} ${endY}, ${endX} ${endY}`;
-        }
-      }
-
-      setScrollDrivenLayout(fromScroll);
-      railPositionsRef.current = nextPositions;
-      setRailPositions(nextPositions);
-      setAnchorVisibility(nextVisibility);
-      setHairlinePath(nextHairline);
     },
-    [cards, cueAsset],
+    [],
   );
 
-  const scheduleRailLayout = useCallback(
-    (fromScroll: boolean) => {
-      if (railFrameRef.current !== null) return;
-      railFrameRef.current = window.requestAnimationFrame(() => measureRail(fromScroll));
+  const handleMentionActivity = useCallback(
+    (assetId: string, mentionId: string, active: boolean) => {
+      if (active) openPopup(assetId, mentionId, false);
     },
-    [measureRail],
+    [openPopup],
   );
 
-  useEffect(() => {
-    scheduleRailLayout(false);
-  }, [cards, pageWidth, scheduleRailLayout]);
+  const updatePopup = useCallback((assetId: string, event: PopupEvent) => {
+    setPopups((current) => {
+      const popup = current[assetId];
+      if (!popup) return current;
+      return { ...current, [assetId]: transitionPopup(popup, event) };
+    });
+  }, []);
 
-  useEffect(() => {
-    const scroll = scrollRef.current;
-    if (!scroll) return;
-    const onScroll = () => scheduleRailLayout(true);
-    scroll.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      scroll.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [scheduleRailLayout]);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-    const observer = new ResizeObserver(() => scheduleRailLayout(false));
-    rail.querySelectorAll("[data-rail-card]").forEach((node) => observer.observe(node));
-    return () => observer.disconnect();
-  }, [cards, scheduleRailLayout]);
+  const raisePopup = useCallback((assetId: string) => {
+    setPopups((current) => {
+      const popup = current[assetId];
+      if (!popup) return current;
+      return { ...current, [assetId]: { ...popup, z: ++zCounter.current } };
+    });
+  }, []);
 
   useEffect(() => {
     const scroll = scrollRef.current;
@@ -282,18 +227,149 @@ export default function Reader({ digest }: { digest: string }) {
     return () => observer.disconnect();
   }, [doc]);
 
-  useEffect(
-    () => () => {
-      cancelRailFrame(railFrameRef, window.cancelAnimationFrame);
-    },
-    [],
-  );
-
   const scrollToPage = useCallback((page: number) => {
     const node = scrollRef.current?.querySelector(`[data-page="${page}"]`);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     node?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }, []);
+
+  const restorePopup = useCallback(
+    (assetId: string) => {
+      const mention = scrollRef.current?.querySelector<HTMLElement>(
+        `[data-mention-asset="${CSS.escape(assetId)}"], [data-asset-region="${CSS.escape(assetId)}"]`,
+      );
+      if (!mention) return;
+      const position = placePopup({
+        popup: POPUP_SIZE,
+        anchor: mention.getBoundingClientRect(),
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        occupied: visiblePopupRects(popups, assetId),
+      });
+      updatePopup(assetId, { type: "restore", position, z: ++zCounter.current });
+    },
+    [popups, updatePopup],
+  );
+
+  const jumpToAsset = useCallback(
+    (assetId: string) => {
+      const asset = assetsById.get(assetId);
+      if (!asset) return;
+      scrollToPage(asset.page);
+      window.requestAnimationFrame(() => {
+        const target = scrollRef.current?.querySelector<HTMLElement>(
+          `[data-asset-region="${CSS.escape(assetId)}"]`,
+        );
+        const container = scrollRef.current;
+        if (target && container) {
+          const root = container.getBoundingClientRect();
+          const rect = target.getBoundingClientRect();
+          container.scrollTo({
+            top: container.scrollTop + rect.top - root.top - 140,
+            behavior: "smooth",
+          });
+        }
+        setFlashAssetId(assetId);
+        window.setTimeout(() => setFlashAssetId(null), 1600);
+      });
+    },
+    [assetsById, scrollToPage],
+  );
+
+  const jumpToMention = useCallback(
+    (mention: Mention) => {
+      if (!mention.assetId) return;
+      const mentionId = `${mention.assetId}:p${mention.page}:m${mention.index}`;
+      setPopups((current) => {
+        const popup = current[mention.assetId as string];
+        if (!popup) return current;
+        return {
+          ...current,
+          [mention.assetId as string]: { ...popup, anchorMentionId: mentionId },
+        };
+      });
+      scrollToPage(mention.page);
+      window.requestAnimationFrame(() => {
+        const target = scrollRef.current?.querySelector<HTMLElement>(
+          `[data-mention-id="${CSS.escape(mentionId)}"]`,
+        );
+        const container = scrollRef.current;
+        if (!target || !container) return;
+        const root = container.getBoundingClientRect();
+        const rect = target.getBoundingClientRect();
+        container.scrollTo({
+          top: container.scrollTop + rect.top - root.top - 140,
+          behavior: "smooth",
+        });
+      });
+    },
+    [scrollToPage],
+  );
+
+  const runScrollFrame = useCallback(() => {
+    scrollFrameRef.current = null;
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+
+    const activeByAsset = new Map<string, HTMLElement>();
+    for (const mention of scroll.querySelectorAll<HTMLElement>("[data-mention-id]")) {
+      const assetId = mention.dataset.mentionAsset;
+      if (
+        assetId &&
+        isMentionActive(mention.getBoundingClientRect(), scroll.clientHeight) &&
+        !activeByAsset.has(assetId)
+      ) {
+        activeByAsset.set(assetId, mention);
+      }
+    }
+
+    if (autoSurface) {
+      for (const [assetId, mention] of activeByAsset) {
+        openPopup(assetId, mention.dataset.mentionId ?? null, false);
+      }
+    }
+    setPopups((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([assetId, popup]) => [
+          assetId,
+          popup.mode === "open" && !activeByAsset.has(assetId)
+            ? { ...popup, mode: "idle" }
+            : popup,
+        ]),
+      ),
+    );
+    setProgress(scroll.scrollTop / Math.max(1, scroll.scrollHeight - scroll.clientHeight));
+    if (manifest) {
+      let section = "";
+      for (const candidate of manifest.sections) {
+        if (candidate.page <= currentPage) section = candidate.title;
+      }
+      setCurrentSection(section);
+    }
+    setSelection((current) =>
+      current?.menuOpen ? { ...current, menuOpen: false } : current,
+    );
+  }, [autoSurface, currentPage, manifest, openPopup]);
+
+  const scheduleScrollFrame = useCallback(() => {
+    if (scrollFrameRef.current !== null) return;
+    scrollFrameRef.current = window.requestAnimationFrame(runScrollFrame);
+  }, [runScrollFrame]);
+
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    scheduleScrollFrame();
+    scroll.addEventListener("scroll", scheduleScrollFrame, { passive: true });
+    window.addEventListener("resize", scheduleScrollFrame, { passive: true });
+    return () => {
+      scroll.removeEventListener("scroll", scheduleScrollFrame);
+      window.removeEventListener("resize", scheduleScrollFrame);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, [analysis.length, scheduleScrollFrame]);
 
   const focusPaperSelection = useCallback(() => {
     const page = selection?.context.page ?? currentPage;
@@ -311,9 +387,11 @@ export default function Reader({ digest }: { digest: string }) {
       if (!target || target.paperId !== paperIdOf(manifest)) return;
       setActiveEvidence(evidence);
       scrollToPage(target.page);
-      if (target.assetId && assetsById.has(target.assetId)) openCard(target.assetId, true);
+      if (target.assetId && assetsById.has(target.assetId)) {
+        window.requestAnimationFrame(() => openPopup(target.assetId as string, null, true));
+      }
     },
-    [assetsById, manifest, openCard, scrollToPage],
+    [assetsById, manifest, openPopup, scrollToPage],
   );
 
   const openSelectionContext = useCallback(() => {
@@ -361,14 +439,7 @@ export default function Reader({ digest }: { digest: string }) {
     [manifest],
   );
 
-  const openPopup = useCallback((_assetId: string, _mentionId: string | null, _pin: boolean) => {}, []);
-  const handleMentionActivity = useCallback(
-    (_assetId: string, _mentionId: string, _active: boolean) => {},
-    [],
-  );
-  const flashAssetId: string | null = null;
-
-  // Track the page at the viewport centre, for reverse-link highlighting and auto-dock.
+  // Track the page at the viewport centre for reverse-link highlighting and the outline.
   useEffect(() => {
     const container = scrollRef.current;
     if (!container || !doc) return;
@@ -387,13 +458,14 @@ export default function Reader({ digest }: { digest: string }) {
     return () => observer.disconnect();
   }, [doc, analysis.length]);
 
-  // Auto-dock: soft-pin whatever the current page references. This is the retention bet
-  // in spec section 13 - it makes the value passive instead of requiring a click.
-  useEffect(() => {
-    if (!autoDock) return;
-    const first = analysis[currentPage]?.mentions.find((m) => m.assetId !== null);
-    if (first?.assetId) openCard(first.assetId, false);
-  }, [autoDock, analysis, currentPage, openCard]);
+  const visiblePopups = useMemo(
+    () =>
+      Object.values(popups)
+        .filter((popup) => popup.mode === "open" || popup.mode === "pinned")
+        .sort((left, right) => left.z - right.z),
+    [popups],
+  );
+  const activePopupId = visiblePopups.at(-1)?.assetId ?? null;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -411,9 +483,8 @@ export default function Reader({ digest }: { digest: string }) {
           setSelection((current) => (current ? { ...current, menuOpen: false } : null));
         } else if (selectionPanel) setSelectionPanel(null);
         else if (activeEvidence) setActiveEvidence(null);
-        else if (expanded) setExpanded(null);
         else if (split) setSplit(null);
-        else if (focused) closeCard(focused);
+        else if (activePopupId) updatePopup(activePopupId, { type: "dock" });
         return;
       }
       if (event.key === "\\") {
@@ -422,31 +493,30 @@ export default function Reader({ digest }: { digest: string }) {
       }
       if (event.key === "f") {
         const next = analysis[currentPage]?.mentions.find((m) => m.assetId !== null);
-        if (next?.assetId) openCard(next.assetId, true);
-        return;
-      }
-      if (/^[1-9]$/.test(event.key)) {
-        const card = cards[Number(event.key) - 1];
-        if (card) {
-          setFocused(card.assetId);
-          setExpanded(card.assetId);
+        if (next?.assetId) {
+          openPopup(next.assetId, `${next.assetId}:p${next.page}:m${next.index}`, true);
         }
         return;
       }
-      if ((event.key === "[" || event.key === "]") && focused) {
-        const list = reverseIndex.get(focused) ?? [];
+      if (/^[1-9]$/.test(event.key)) {
+        const popup = visiblePopups[Number(event.key) - 1];
+        if (popup) raisePopup(popup.assetId);
+        return;
+      }
+      if ((event.key === "[" || event.key === "]") && activePopupId) {
+        const list = reverseIndex.get(activePopupId) ?? [];
         if (list.length === 0) return;
         const position = list.findIndex((m) => m.page >= currentPage);
         const target =
           event.key === "]"
             ? list[Math.min(list.length - 1, Math.max(0, position + 1))]
             : list[Math.max(0, position - 1)];
-        if (target) scrollToPage(target.page);
+        if (target) jumpToMention(target);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeEvidence, analysis, cards, closeCard, currentPage, expanded, focused, openCard, reverseIndex, scrollToPage, selection, selectionPanel, split]);
+  }, [activeEvidence, activePopupId, analysis, currentPage, jumpToMention, openPopup, raisePopup, reverseIndex, selection, selectionPanel, split, updatePopup, visiblePopups]);
 
   if (error) {
     return <p className="p-8 text-red-600">Could not open this paper: {error}</p>;
@@ -455,11 +525,9 @@ export default function Reader({ digest }: { digest: string }) {
     return <p className="p-8 opacity-60">Loading paperâ€¦</p>;
   }
 
-  const expandedAsset = expanded ? assetsById.get(expanded) : null;
-
   return (
     <div className={`flex h-screen flex-col ${dark ? "dark bg-neutral-950 text-neutral-100" : "bg-neutral-100"}`}>
-      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-300 px-4 py-2 dark:border-neutral-800">
+      <header className="relative flex shrink-0 items-center gap-3 border-b border-neutral-300 px-4 py-2 dark:border-neutral-800">
         <button
           type="button"
           onClick={() => setOutlineOpen((open) => !open)}
@@ -469,12 +537,21 @@ export default function Reader({ digest }: { digest: string }) {
           â˜°
         </button>
         <h1 className="flex-1 truncate text-sm font-medium">{manifest.title || "Untitled paper"}</h1>
+        {currentSection && (
+          <span className="max-w-56 truncate text-xs opacity-60" title={currentSection}>
+            {currentSection}
+          </span>
+        )}
         <span className="text-xs opacity-60">
           p.{currentPage + 1} / {manifest.page_count}
         </span>
         <label className="flex items-center gap-1 text-xs">
-          <input type="checkbox" checked={autoDock} onChange={(e) => setAutoDock(e.target.checked)} />
-          auto-dock
+          <input
+            type="checkbox"
+            checked={autoSurface}
+            onChange={(event) => setAutoSurface(event.target.checked)}
+          />
+          auto-surface
         </label>
         <button
           type="button"
@@ -483,13 +560,18 @@ export default function Reader({ digest }: { digest: string }) {
         >
           {dark ? "â˜€" : "â˜¾"}
         </button>
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-indigo-500"
+          style={{ transform: `scaleX(${progress})` }}
+        />
       </header>
 
       <div
-        className={`grid min-h-0 flex-1 gap-x-8 overflow-x-auto ${
+        className={`grid min-h-0 flex-1 overflow-x-auto ${
           outlineOpen
-            ? "grid-cols-[minmax(560px,1fr)_56px] min-[901px]:grid-cols-[240px_minmax(560px,1fr)_56px] min-[1280px]:grid-cols-[240px_minmax(560px,1fr)_400px]"
-            : "grid-cols-[minmax(560px,1fr)_56px] min-[1280px]:grid-cols-[minmax(560px,1fr)_400px]"
+            ? "grid-cols-[minmax(560px,1fr)] min-[901px]:grid-cols-[240px_minmax(560px,1fr)]"
+            : "grid-cols-[minmax(560px,1fr)]"
         }`}
       >
         {outlineOpen && (
@@ -513,7 +595,7 @@ export default function Reader({ digest }: { digest: string }) {
               <button
                 key={asset.asset_id}
                 type="button"
-                onClick={() => openCard(asset.asset_id, true)}
+                onClick={() => openPopup(asset.asset_id, null, true)}
                 className="block w-full truncate rounded px-2 py-1 text-left hover:bg-neutral-200 dark:hover:bg-neutral-800"
                 title={asset.caption}
               >
@@ -523,15 +605,7 @@ export default function Reader({ digest }: { digest: string }) {
           </nav>
         )}
 
-        <div
-          ref={scrollRef}
-          className="min-w-[560px] overflow-y-auto px-2 py-6"
-          onScroll={() =>
-            setSelection((current) =>
-              current?.menuOpen ? { ...current, menuOpen: false } : current,
-            )
-          }
-        >
+        <div ref={scrollRef} className="min-w-[560px] overflow-y-auto px-2 py-6">
           {Array.from({ length: manifest.page_count }, (_, index) => (
             <PdfPageView
               key={index}
@@ -551,7 +625,7 @@ export default function Reader({ digest }: { digest: string }) {
                 setSelectionPanel(null);
                 setActiveEvidence(null);
               }}
-              highlightedAssetId={focused}
+              highlightedAssetId={activePopupId}
               flashAssetId={flashAssetId}
               assetRegions={manifest.assets
                 .filter((asset) => asset.page === index)
@@ -561,77 +635,8 @@ export default function Reader({ digest }: { digest: string }) {
           ))}
         </div>
 
-        <aside
-          ref={railRef}
-          aria-label="Pinned figures"
-          className="relative overflow-hidden border-l border-neutral-900/10 bg-neutral-100/80 px-2 dark:border-white/10 dark:bg-neutral-950/80 min-[1280px]:px-0"
-        >
-          <div className="hidden h-full min-[1280px]:block">
-            {cards.map((card) => {
-              const asset = assetsById.get(card.assetId);
-              if (!asset) return null;
-              return (
-                <OverlayCard
-                  key={card.assetId}
-                  asset={asset}
-                  card={card}
-                  focused={focused === card.assetId}
-                  reciprocal={cueAsset === card.assetId}
-                  anchorVisible={anchorVisibility[card.assetId] ?? false}
-                  positioned={railPositions[card.assetId] !== undefined}
-                  y={railPositions[card.assetId] ?? 16}
-                  scrollDriven={scrollDrivenLayout}
-                  compact={cards.length >= 3}
-                  currentPage={currentPage}
-                  mentions={reverseIndex.get(card.assetId) ?? []}
-                  onClose={() => closeCard(card.assetId)}
-                  onFocus={() => setFocused(card.assetId)}
-                  onHoverChange={(hovered) => {
-                    setCueAsset(hovered ? card.assetId : null);
-                    if (hovered) setFocused(card.assetId);
-                  }}
-                  onExpand={() => setExpanded(card.assetId)}
-                  onJumpToMention={(mention) => {
-                    setCards((previous) =>
-                      previous.map((item) =>
-                        item.assetId === card.assetId
-                          ? {
-                              ...item,
-                              anchorMentionId: `${mention.assetId}:p${mention.page}:m${mention.index}`,
-                            }
-                          : item,
-                      ),
-                    );
-                    scrollToPage(mention.page);
-                  }}
-                />
-              );
-            })}
-          </div>
-
-          <div className="flex h-full flex-col items-center gap-2 py-4 min-[1280px]:hidden">
-            {cards.map((card) => {
-              const asset = assetsById.get(card.assetId);
-              if (!asset) return null;
-              return (
-                <button
-                  key={card.assetId}
-                  type="button"
-                  onClick={() => setSheetAsset(card.assetId)}
-                  className={`h-12 w-12 overflow-hidden rounded-md border bg-white p-1 ${
-                    focused === card.assetId ? "border-sky-500" : "border-neutral-900/10"
-                  }`}
-                  aria-label={`Open ${asset.label}`}
-                >
-                  <img src={blobUrl(asset.image_url)} alt="" className="h-full w-full object-contain" />
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
         {split && (
-          <aside className="fixed inset-y-0 right-0 z-50 flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+          <aside className="fixed inset-y-0 right-0 z-[1000] flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
             <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
               <span className="flex-1 truncate text-sm">{split.title}</span>
               <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
@@ -647,10 +652,56 @@ export default function Reader({ digest }: { digest: string }) {
         )}
       </div>
 
-      {hairlinePath && (
-        <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-20 h-screen w-screen">
-          <path d={hairlinePath} fill="none" stroke="rgb(14 165 233)" strokeWidth="1" />
-        </svg>
+      {visiblePopups.map((popup) => {
+        const asset = assetsById.get(popup.assetId);
+        if (!asset) return null;
+        return (
+          <OverlayCard
+            key={popup.assetId}
+            asset={asset}
+            popup={popup}
+            mentions={reverseIndex.get(popup.assetId) ?? []}
+            currentPage={currentPage}
+            onMove={(position) => updatePopup(popup.assetId, { type: "drag", position })}
+            onPin={(pinned) =>
+              updatePopup(popup.assetId, { type: pinned ? "pin" : "unpin" })
+            }
+            onDock={() => updatePopup(popup.assetId, { type: "dock" })}
+            onRaise={() => raisePopup(popup.assetId)}
+            onJumpToAsset={() => jumpToAsset(popup.assetId)}
+            onJumpToMention={jumpToMention}
+          />
+        );
+      })}
+
+      {Object.values(popups).some((popup) => popup.mode === "docked") && (
+        <aside
+          aria-label="Minimized figures"
+          className="fixed bottom-4 left-1/2 z-[90] flex -translate-x-1/2 gap-2 rounded-xl border border-neutral-900/10 bg-white/90 p-2 shadow-lg backdrop-blur dark:border-white/10 dark:bg-neutral-900/90"
+        >
+          {Object.values(popups)
+            .filter((popup) => popup.mode === "docked")
+            .map((popup) => {
+              const asset = assetsById.get(popup.assetId);
+              if (!asset) return null;
+              return (
+                <button
+                  key={popup.assetId}
+                  type="button"
+                  onClick={() => restorePopup(popup.assetId)}
+                  className="flex items-center gap-2 rounded-lg border border-neutral-900/10 bg-white px-2 py-1.5 text-xs shadow-sm hover:border-indigo-400 dark:border-white/10 dark:bg-neutral-800"
+                  aria-label={`Restore ${asset.label}`}
+                >
+                  <img
+                    src={blobUrl(asset.image_url)}
+                    alt=""
+                    className="h-8 w-10 bg-white object-contain"
+                  />
+                  {asset.label}
+                </button>
+              );
+            })}
+        </aside>
       )}
 
       {selectionPanel && (
@@ -659,7 +710,7 @@ export default function Reader({ digest }: { digest: string }) {
           context={selectionPanel.context}
           thread={selectionPanel.thread}
           onNavigateEvidence={navigateToEvidence}
-          onOpenAsset={(assetId) => openCard(assetId, true)}
+          onOpenAsset={(assetId) => openPopup(assetId, null, true)}
           onClose={() => setSelectionPanel(null)}
         />
       )}
@@ -681,56 +732,6 @@ export default function Reader({ digest }: { digest: string }) {
         onRestorePaperPage={scrollToPage}
       />
 
-      {sheetAsset && assetsById.get(sheetAsset) && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/35 p-4 min-[1280px]:hidden">
-          <div className="mx-auto w-full max-w-3xl">
-            {(() => {
-              const card = cards.find((item) => item.assetId === sheetAsset);
-              const asset = assetsById.get(sheetAsset);
-              if (!card || !asset) return null;
-              return (
-                <OverlayCard
-                  asset={asset}
-                  card={card}
-                  variant="sheet"
-                  focused
-                  reciprocal={false}
-                  anchorVisible
-                  positioned
-                  y={0}
-                  scrollDriven={false}
-                  currentPage={currentPage}
-                  mentions={reverseIndex.get(card.assetId) ?? []}
-                  onClose={() => setSheetAsset(null)}
-                  onFocus={() => setFocused(card.assetId)}
-                  onHoverChange={() => undefined}
-                  onExpand={() => setExpanded(card.assetId)}
-                  onJumpToMention={(mention) => {
-                    setSheetAsset(null);
-                    scrollToPage(mention.page);
-                  }}
-                />
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {expandedAsset && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-8"
-          onClick={() => setExpanded(null)}
-        >
-          <img
-            src={blobUrl(expandedAsset.image_url)}
-            alt={expandedAsset.caption}
-            className="max-h-[80vh] max-w-full bg-white object-contain"
-          />
-          <p className="mt-3 max-w-3xl text-center text-sm text-neutral-200">
-            {expandedAsset.caption}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
