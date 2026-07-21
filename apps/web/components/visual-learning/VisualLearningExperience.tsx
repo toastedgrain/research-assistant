@@ -15,7 +15,12 @@ import {
 } from "../../lib/visual-learning/client";
 import type { VisualChallengeSpec, VisualGenerationRequest, VisualLearningSpec } from "../../lib/visual-learning/contracts";
 import { createDeterministicVisualFallback } from "../../lib/visual-learning/fallback";
+import {
+  createChainOfThoughtDemoEvidence,
+  isChainOfThoughtDemoPaper,
+} from "../../lib/visual-learning/demos/chain-of-thought-demo";
 import { createVisualGenerationRequest } from "../../lib/visual-learning/request";
+import ChainOfThoughtDemoExperience from "./demos/ChainOfThoughtDemoExperience";
 import LocalAiStatus from "./LocalAiStatus";
 import VisualChallengeCanvas from "./VisualChallengeCanvas";
 import VisualLearningCanvas from "./VisualLearningCanvas";
@@ -82,10 +87,15 @@ export default function VisualLearningExperience({
   onUseDeterministicFallback,
   onGeneratedChallengeComplete,
 }: Props) {
-  const request = useMemo(() => createVisualGenerationRequest(context, index, resolver, {
+  const isDemoPaper = isChainOfThoughtDemoPaper(index.manifest);
+  const demoEvidence = useMemo(
+    () => isDemoPaper ? createChainOfThoughtDemoEvidence(index) : null,
+    [index, isDemoPaper],
+  );
+  const request = useMemo(() => isDemoPaper ? null : createVisualGenerationRequest(context, index, resolver, {
     intent: kind === "visualize" ? "visualize" : kind === "quest" ? "build-game" : "process-game",
     learningMode: kind === "visualize" ? "learn" : kind === "quest" ? "quest" : "play",
-  }), [context, index, kind, resolver]);
+  }), [context, index, isDemoPaper, kind, resolver]);
   const [learning, setLearning] = useState<VisualLearningSpec | null>(null);
   const [challenge, setChallenge] = useState<VisualChallengeSpec | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,6 +104,14 @@ export default function VisualLearningExperience({
   const generationKey = request ? `${kind}:${request.paper.paperId}:${request.sourceEvidence.map((item) => item.id).join(",")}` : "none";
 
   useEffect(() => {
+    if (isDemoPaper) {
+      setLearning(null);
+      setChallenge(null);
+      setMessage(null);
+      setLoading(false);
+      setStage(0);
+      return;
+    }
     if (!request) {
       setLoading(false);
       setMessage("This selection did not resolve to enough verified source evidence.");
@@ -143,7 +161,7 @@ export default function VisualLearningExperience({
     // generationKey captures the immutable request identity. Depending on the request
     // object itself would restart generation when parent contexts are rebuilt unchanged.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generationKey, kind]);
+  }, [generationKey, isDemoPaper, kind]);
 
   const showEvidence = (id: string) => {
     if (!request) return;
@@ -152,6 +170,17 @@ export default function VisualLearningExperience({
   };
   const assetImages = Object.fromEntries((request?.assets ?? []).flatMap((asset) => asset.imageUrl ? [[asset.id, blobUrl(asset.imageUrl)]] : []));
   const selectedEvidenceId = currentSelectionEvidenceId(currentContext, index.paperId);
+
+  if (isDemoPaper && demoEvidence) {
+    return (
+      <ChainOfThoughtDemoExperience
+        initialTab={kind === "visualize" ? "explore" : "build"}
+        evidence={demoEvidence}
+        onNavigateEvidence={onNavigateEvidence}
+        onComplete={onGeneratedChallengeComplete}
+      />
+    );
+  }
 
   if (loading) return (
     <section className="grid min-h-80 place-items-center rounded-2xl border border-neutral-300 bg-white p-8 text-center shadow-xl dark:border-neutral-700 dark:bg-neutral-950" aria-live="polite">
