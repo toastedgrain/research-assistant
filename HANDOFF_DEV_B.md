@@ -1,7 +1,7 @@
 # Developer B handoff — Exploration, Workspace & Accessibility
 
-**Status:** Phases 1–7 complete. Phase 8 is next.
-**Last completed branch:** `workspace/pinboard` — persisted source boards and comparisons.
+**Status:** Phases 1–8 complete. Phase 9 accessibility hardening is next.
+**Last completed branch:** `explore/research-views` — deterministic collection research surfaces.
 **Working tree:** clean, `main` in sync with `origin/main`, no servers running.
 
 This document hands off the Developer B track to whoever picks it up next. It assumes you
@@ -233,6 +233,17 @@ with no dead link after the API was stopped, and deletion cleanup.
 - **`/workspace/collections/<id>/compare`** — user-selected source evidence shown side by
   side; saved drafts contain pointers only and generate no conclusions.
 
+### Phase 8 — Research views, benchmark browser, and search
+
+- **`apps/web/lib/explore/research-views.ts`** — user-selected lineage, explicit/unknown
+  chronology, original-figure timelines, and fixed-radius constellation nodes on the shared
+  `ResearchGraph`.
+- **`apps/web/lib/explore/collection-index.ts`** — one bounded lexical index over titles,
+  sections, extracted page text, captions, observed references, and asset labels. Benchmark
+  browsing constrains this same index and never normalizes metrics.
+- **`/workspace/collections/<id>/research`** — Search, Benchmarks, Lineage, Timeline, and
+  Constellation views. Missing local papers stay listed but do not create dead affordances.
+
 ---
 
 ## 7. Current state
@@ -245,10 +256,11 @@ main  (updated after each green phase; see git log)
 ├── workspace/collections      merged, pushed
 ├── accessibility/reflow       merged, pushed
 ├── explore/citation-graph     merged, pushed
-└── workspace/pinboard         complete, pushed
+├── workspace/pinboard         merged, pushed
+└── explore/research-views     complete, pushed
 ```
 
-Tests: **127 web** (vitest) + **151 Python** (pytest), all green. Typecheck and production
+Tests: **134 web** (vitest) + **151 Python** (pytest), all green. Typecheck and production
 build clean.
 No background processes; ports 8000 and 3000 are free.
 
@@ -284,6 +296,10 @@ apps/web/lib/workspace/evidence.ts           + evidence.test.ts
 apps/web/components/workspace/WorkspacePinboard.tsx
 apps/web/components/workspace/EvidenceComparison.tsx
 apps/web/app/workspace/collections/[collectionId]/{board,compare}/page.tsx
+apps/web/lib/explore/research-views.ts       + research-views.test.ts
+apps/web/lib/explore/collection-index.ts     + collection-index.test.ts
+apps/web/components/workspace/CollectionResearch.tsx
+apps/web/app/workspace/collections/[collectionId]/research/page.tsx
 ```
 
 `apps/web/package*.json` add the test-only `fake-indexeddb` dependency. `Reader.tsx` has
@@ -294,11 +310,6 @@ not been touched.
 ## 8. What is next — the remaining phase plan
 
 Follows the doc's Dev B staging (§17). One branch per phase; merge to `main` when green.
-
-### Phase 8 — lineage, timelines, constellation (§B5–B7)
-All on the shared `ResearchGraph`. Generated lineage edges must be visually distinct from
-literal citation edges. Do not imply bibliometric importance from node size unless you
-define it.
 
 ### Phase 9 — accessibility hardening (§10.2–10.5)
 Typography controls, keyboard completeness, screen-reader semantics, optional read-aloud
