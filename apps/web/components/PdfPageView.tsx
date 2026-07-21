@@ -17,10 +17,12 @@ interface Props {
   mentions: Mention[];
   citations: Citation[];
   textItems: PageTextItem[];
-  onOpenAsset: (assetId: string) => void;
+  onOpenAsset: (assetId: string, mentionId: string) => void;
   onOpenCitation: (citation: Citation) => void;
   onTextSelection: (selection: CapturedSelection) => void;
   highlightedAssetId: string | null;
+  flashAssetId: string | null;
+  assetRegions: Array<{ assetId: string; bbox: BBox }>;
   evidenceBBox?: BBox;
 }
 
@@ -44,6 +46,8 @@ export default function PdfPageView({
   onOpenCitation,
   onTextSelection,
   highlightedAssetId,
+  flashAssetId,
+  assetRegions,
   evidenceBBox,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -142,6 +146,7 @@ export default function PdfPageView({
 
       {evidenceBBox && (
         <div
+          data-evidence-region="true"
           aria-hidden="true"
           className="pointer-events-none absolute z-20 border-2 border-amber-500 bg-amber-300/20 shadow-[0_0_0_2px_rgba(255,255,255,0.65)]"
           style={{
@@ -153,27 +158,52 @@ export default function PdfPageView({
         />
       )}
 
+      {assetRegions.map((region) => (
+        <div
+          key={region.assetId}
+          data-asset-region={region.assetId}
+          aria-hidden="true"
+          className={`pointer-events-none absolute z-20 transition-shadow duration-500 motion-reduce:transition-none ${
+            flashAssetId === region.assetId
+              ? "shadow-[0_0_0_4px_rgba(245,158,11,0.45)]"
+              : "shadow-none"
+          }`}
+          style={{
+            left: `${region.bbox[0] * 100}%`,
+            top: `${region.bbox[1] * 100}%`,
+            width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
+            height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
+          }}
+        />
+      ))}
+
       {mentions
         .filter((mention) => mention.assetId !== null && mention.rect !== null)
-        .map((mention, i) => (
-          <button
-            key={`m-${i}`}
-            type="button"
-            title={`Open ${mention.text}`}
-            onClick={() => onOpenAsset(mention.assetId as string)}
-            className={`absolute z-30 cursor-pointer border-b-2 transition-colors ${
-              highlightedAssetId === mention.assetId
-                ? "border-amber-500 bg-amber-300/25"
-                : "border-sky-500/60 hover:bg-sky-400/20"
-            }`}
-            style={{
-              left: `${mention.rect![0] * 100}%`,
-              top: `${mention.rect![1] * 100}%`,
-              width: `${(mention.rect![2] - mention.rect![0]) * 100}%`,
-              height: `${(mention.rect![3] - mention.rect![1]) * 100}%`,
-            }}
-          />
-        ))}
+        .map((mention, i) => {
+          const assetId = mention.assetId as string;
+          const mentionId = `${assetId}:p${pageIndex}:m${mention.index}`;
+          return (
+            <button
+              key={`m-${i}`}
+              data-mention-id={mentionId}
+              data-mention-asset={assetId}
+              type="button"
+              title={`Open ${mention.text}`}
+              onClick={() => onOpenAsset(assetId, mentionId)}
+              className={`absolute z-30 cursor-pointer border-b-2 transition-colors ${
+                highlightedAssetId === mention.assetId
+                  ? "border-amber-500 bg-amber-300/25"
+                  : "border-sky-500/60 hover:bg-sky-400/20"
+              }`}
+              style={{
+                left: `${mention.rect![0] * 100}%`,
+                top: `${mention.rect![1] * 100}%`,
+                width: `${(mention.rect![2] - mention.rect![0]) * 100}%`,
+                height: `${(mention.rect![3] - mention.rect![1]) * 100}%`,
+              }}
+            />
+          );
+        })}
 
       {citations
         .filter((citation) => citation.openable && citation.rect !== null)

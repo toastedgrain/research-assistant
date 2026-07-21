@@ -23,6 +23,7 @@ import {
 } from "../lib/evidence/source";
 import type { CapturedSelection } from "../lib/selection/dom";
 import { responsivePageWidth } from "../lib/reader/layout";
+import { activeFigureAnchor, mentionAnchorId, targetScrollTop } from "../lib/reader/figure-navigation";
 import { readerScrollBehavior } from "../lib/reader/motion";
 import { IndexedDbWorkspaceRepository } from "../lib/workspace/indexed-db";
 import { pinVerifiedEvidence } from "../lib/workspace/pinning";
@@ -69,8 +70,11 @@ export default function Reader({ digest }: { digest: string }) {
   const [activeEvidence, setActiveEvidence] = useState<SourceEvidence | null>(null);
   const [pageWidth, setPageWidth] = useState(760);
   const [pinStatus, setPinStatus] = useState("");
+  const [flashAssetId, setFlashAssetId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
   const workspaceRepository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
 
   // Load the manifest and the PDF, then analyse every page's text once. The reverse
@@ -131,13 +135,18 @@ export default function Reader({ digest }: { digest: string }) {
     return buildResearchContext({ manifest, selection: selection.context, pages: analysis, ...(learningIndex ? { index: learningIndex } : {}) });
   }, [analysis, learningIndex, manifest, selection]);
 
-  const openCard = useCallback((assetId: string, hard: boolean) => {
+  const openCard = useCallback((assetId: string, hard: boolean, anchorMentionId: string | null = null) => {
     setCards((previous) => {
       const existing = previous.find((card) => card.assetId === assetId);
       if (existing) {
         // Re-opening an auto-docked card promotes it to a hard pin.
+        const nextHard = existing.hard || hard;
+        const nextAnchor = anchorMentionId ?? existing.anchorMentionId;
+        if (existing.hard === nextHard && existing.anchorMentionId === nextAnchor) return previous;
         return previous.map((card) =>
-          card.assetId === assetId ? { ...card, hard: card.hard || hard } : card,
+          card.assetId === assetId
+            ? { ...card, hard: nextHard, anchorMentionId: nextAnchor }
+            : card,
         );
       }
       const kept = (hard ? previous : previous.filter((card) => card.hard)).slice(-2);
@@ -145,7 +154,7 @@ export default function Reader({ digest }: { digest: string }) {
       const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
       const cardWidth = Math.min(320, Math.max(240, viewportWidth - 16));
       const x = Math.min(40 + offset, Math.max(8, viewportWidth - cardWidth - 8));
-      return [...kept, { assetId, x, y: 110 + offset, hard }];
+      return [...kept, { assetId, x, y: 110 + offset, hard, anchorMentionId }];
     });
     setFocused(assetId);
   }, []);
@@ -160,6 +169,52 @@ export default function Reader({ digest }: { digest: string }) {
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     node?.scrollIntoView({ behavior: readerScrollBehavior(Boolean(reduceMotion)), block: "start" });
   }, []);
+
+  const scrollToRegion = useCallback((selector: string, fallbackPage: number) => {
+    const container = scrollRef.current;
+    const target = container?.querySelector<HTMLElement>(selector);
+    if (!container || !target) {
+      scrollToPage(fallbackPage);
+      return;
+    }
+    const root = container.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    container.scrollTo({
+      top: targetScrollTop(container.scrollTop, rect.top, root.top),
+      behavior: readerScrollBehavior(Boolean(reduceMotion)),
+    });
+  }, [scrollToPage]);
+
+  const jumpToAsset = useCallback((assetId: string) => {
+    const asset = assetsById.get(assetId);
+    if (!asset) return;
+    scrollToRegion(`[data-asset-region="${CSS.escape(assetId)}"]`, asset.page);
+    setFlashAssetId(assetId);
+    if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => {
+      setFlashAssetId(null);
+      flashTimerRef.current = null;
+    }, 1_600);
+  }, [assetsById, scrollToRegion]);
+
+  const jumpToMention = useCallback((mention: Mention) => {
+    if (!mention.assetId) return;
+    const mentionId = mentionAnchorId(mention.assetId, mention.page, mention.index);
+    setCards((current) => current.map((card) => card.assetId === mention.assetId ? { ...card, anchorMentionId: mentionId } : card));
+    setFocused(mention.assetId);
+    scrollToRegion(`[data-mention-id="${CSS.escape(mentionId)}"]`, mention.page);
+  }, [scrollToRegion]);
+
+  useEffect(() => () => {
+    if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (focused && !cards.some((card) => card.assetId === focused)) {
+      setFocused(cards.at(-1)?.assetId ?? null);
+    }
+  }, [cards, focused]);
 
   useEffect(() => {
     if (window.matchMedia("(max-width: 767px)").matches) setOutlineOpen(false);
@@ -176,6 +231,52 @@ export default function Reader({ digest }: { digest: string }) {
     observer.observe(container);
     return () => observer.disconnect();
   }, [outlineOpen, split]);
+
+  const runFigureScrollFrame = useCallback(() => {
+    scrollFrameRef.current = null;
+    const container = scrollRef.current;
+    if (!container) return;
+    const viewport = container.getBoundingClientRect();
+    const candidates = Array.from(container.querySelectorAll<HTMLElement>("[data-mention-id]"))
+      .flatMap((node) => {
+        const assetId = node.dataset.mentionAsset;
+        const mentionId = node.dataset.mentionId;
+        if (!assetId || !mentionId) return [];
+        const rect = node.getBoundingClientRect();
+        return [{ assetId, mentionId, top: rect.top, bottom: rect.bottom }];
+      });
+    const active = activeFigureAnchor(candidates, viewport.top, container.clientHeight);
+
+    if (autoDock) {
+      if (active) openCard(active.assetId, false, active.mentionId);
+      else setCards((current) => {
+        const pinned = current.filter((card) => card.hard);
+        return pinned.length === current.length ? current : pinned;
+      });
+    }
+    setSelection((current) => current?.menuOpen ? { ...current, menuOpen: false } : current);
+  }, [autoDock, openCard]);
+
+  const scheduleFigureScrollFrame = useCallback(() => {
+    if (scrollFrameRef.current !== null) return;
+    scrollFrameRef.current = window.requestAnimationFrame(runFigureScrollFrame);
+  }, [runFigureScrollFrame]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    scheduleFigureScrollFrame();
+    container.addEventListener("scroll", scheduleFigureScrollFrame, { passive: true });
+    window.addEventListener("resize", scheduleFigureScrollFrame, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", scheduleFigureScrollFrame);
+      window.removeEventListener("resize", scheduleFigureScrollFrame);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, [analysis.length, scheduleFigureScrollFrame]);
 
   const focusPaperSelection = useCallback(() => {
     const page = selection?.context.page ?? currentPage;
@@ -194,12 +295,20 @@ export default function Reader({ digest }: { digest: string }) {
         currentPageCount: manifest.page_count,
         onCurrent(target, source) {
           setActiveEvidence(source);
-          scrollToPage(target.page);
-          if (target.assetId && assetsById.has(target.assetId)) openCard(target.assetId, true);
+          window.requestAnimationFrame(() => {
+            if (target.assetId && assetsById.has(target.assetId)) {
+              jumpToAsset(target.assetId);
+              openCard(target.assetId, true);
+            } else if (target.bbox) {
+              scrollToRegion('[data-evidence-region="true"]', target.page);
+            } else {
+              scrollToPage(target.page);
+            }
+          });
         },
       });
     },
-    [assetsById, manifest, openCard, scrollToPage],
+    [assetsById, jumpToAsset, manifest, openCard, scrollToPage, scrollToRegion],
   );
 
   useEffect(() => {
@@ -216,14 +325,20 @@ export default function Reader({ digest }: { digest: string }) {
       });
       setActiveEvidence(target.bbox || target.assetId ? evidence : null);
       window.requestAnimationFrame(() => {
-        scrollToPage(target.page);
-        if (target.assetId && asset) openCard(target.assetId, true);
+        if (target.assetId && asset) {
+          jumpToAsset(target.assetId);
+          openCard(target.assetId, true);
+        } else if (target.bbox) {
+          scrollToRegion('[data-evidence-region="true"]', target.page);
+        } else {
+          scrollToPage(target.page);
+        }
       });
     };
     applyDeepLink();
     window.addEventListener("hashchange", applyDeepLink);
     return () => window.removeEventListener("hashchange", applyDeepLink);
-  }, [assetsById, manifest, openCard, scrollToPage]);
+  }, [assetsById, jumpToAsset, manifest, openCard, scrollToPage, scrollToRegion]);
 
   const pinEvidence = useCallback(async (evidence: SourceEvidence) => {
     if (!manifest) return;
@@ -305,14 +420,6 @@ export default function Reader({ digest }: { digest: string }) {
     return () => observer.disconnect();
   }, [doc, analysis.length]);
 
-  // Auto-dock: soft-pin whatever the current page references. This is the retention bet
-  // in spec section 13 - it makes the value passive instead of requiring a click.
-  useEffect(() => {
-    if (!autoDock) return;
-    const first = analysis[currentPage]?.mentions.find((m) => m.assetId !== null);
-    if (first?.assetId) openCard(first.assetId, false);
-  }, [autoDock, analysis, currentPage, openCard]);
-
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (
@@ -340,7 +447,7 @@ export default function Reader({ digest }: { digest: string }) {
       }
       if (event.key === "f") {
         const next = analysis[currentPage]?.mentions.find((m) => m.assetId !== null);
-        if (next?.assetId) openCard(next.assetId, true);
+        if (next?.assetId) openCard(next.assetId, true, mentionAnchorId(next.assetId, next.page, next.index));
         return;
       }
       if (/^[1-9]$/.test(event.key)) {
@@ -359,12 +466,12 @@ export default function Reader({ digest }: { digest: string }) {
           event.key === "]"
             ? list[Math.min(list.length - 1, Math.max(0, position + 1))]
             : list[Math.max(0, position - 1)];
-        if (target) scrollToPage(target.page);
+        if (target) jumpToMention(target);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeEvidence, analysis, cards, closeCard, currentPage, expanded, focused, openCard, reverseIndex, scrollToPage, selection, selectionPanel, split]);
+  }, [activeEvidence, analysis, cards, closeCard, currentPage, expanded, focused, jumpToMention, openCard, reverseIndex, selection, selectionPanel, split]);
 
   if (error) {
     return <p className="p-8 text-red-600">Could not open this paper: {error}</p>;
@@ -464,7 +571,7 @@ export default function Reader({ digest }: { digest: string }) {
               mentions={analysis[index]?.mentions ?? []}
               citations={analysis[index]?.citations ?? []}
               textItems={analysis[index]?.items ?? []}
-              onOpenAsset={(assetId) => openCard(assetId, true)}
+              onOpenAsset={(assetId, mentionId) => openCard(assetId, true, mentionId)}
               onOpenCitation={openCitation}
               onTextSelection={(captured) => {
                 setSelection({ ...captured, menuOpen: true });
@@ -472,6 +579,10 @@ export default function Reader({ digest }: { digest: string }) {
                 setActiveEvidence(null);
               }}
               highlightedAssetId={focused}
+              flashAssetId={flashAssetId}
+              assetRegions={manifest.assets
+                .filter((asset) => asset.page === index)
+                .map((asset) => ({ assetId: asset.asset_id, bbox: asset.bbox }))}
               evidenceBBox={activeEvidence?.page === index ? activeEvidence.bbox : undefined}
             />
           ))}
@@ -553,7 +664,7 @@ export default function Reader({ digest }: { digest: string }) {
             onFocus={() => setFocused(card.assetId)}
             onExpand={() => setExpanded(card.assetId)}
             onPin={() => void pinEvidence(assetEvidence(manifest.doc_id, asset))}
-            onJumpToMention={(mention) => scrollToPage(mention.page)}
+            onJumpToMention={jumpToMention}
           />
         );
       })}

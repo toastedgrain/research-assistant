@@ -12,6 +12,8 @@ export interface CardState {
   y: number;
   /** Soft pins are replaced by the next auto-dock; hard pins persist until dismissed. */
   hard: boolean;
+  /** Stable source mention used for exact reverse navigation and scroll synchronization. */
+  anchorMentionId?: string | null;
 }
 
 interface Props {
