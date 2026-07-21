@@ -2,7 +2,7 @@
 
 import { ArrowLeft, LocateFixed, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ChallengeEvidence, ChallengeReturnRecord, EvidenceHuntChallenge } from "../../lib/challenges/contracts";
+import type { ChallengeEvidence, ChallengeReturnRecord, ChallengeSpec } from "../../lib/challenges/contracts";
 import { createEvidenceHunt } from "../../lib/challenges/evidence-hunt";
 import { createChallengeReturnRecord } from "../../lib/challenges/session";
 import type { EvidenceResolver } from "../../lib/evidence/resource";
@@ -11,6 +11,7 @@ import type { ResearchContext, SelectionContext } from "../../lib/research-conte
 import type { CapturedSelection } from "../../lib/selection/dom";
 import ChallengeRendererShell from "../games/ChallengeRendererShell";
 import SelectionMenu from "../selection/SelectionMenu";
+import LearningModes, { type LearningModeRequest } from "./LearningModes";
 
 interface Props {
   selection: (CapturedSelection & { menuOpen: boolean }) | null;
@@ -53,11 +54,13 @@ export default function ReaderLearningLayer({
   onFocusPaper,
   onRestorePaperPage,
 }: Props) {
-  const [challenge, setChallenge] = useState<EvidenceHuntChallenge | null>(null);
+  const [challenge, setChallenge] = useState<ChallengeSpec | null>(null);
   const [huntSelection, setHuntSelection] = useState<SelectionContext | undefined>();
   const [returnRecord, setReturnRecord] = useState<ChallengeReturnRecord | undefined>();
   const [view, setView] = useState<"challenge" | "evidence">("challenge");
   const [returnPage, setReturnPage] = useState<number | undefined>();
+  const [completedChallengeIds, setCompletedChallengeIds] = useState<Set<string>>(() => new Set());
+  const [learningRequest, setLearningRequest] = useState<LearningModeRequest | undefined>();
   const ignoredSelection = useRef<SelectionContext | undefined>(undefined);
 
   useEffect(() => {
@@ -78,6 +81,13 @@ export default function ReaderLearningLayer({
     onSelectionMenuOpenChange(false);
   };
 
+  const startChallenge = (next: ChallengeSpec) => {
+    setChallenge(next);
+    setHuntSelection(undefined);
+    setReturnRecord(undefined);
+    setView("challenge");
+  };
+
   const showEvidence = (evidence: ChallengeEvidence) => {
     if (challenge && returnRecord) setReturnRecord(createChallengeReturnRecord(returnRecord));
     setReturnPage(huntSelection?.page ?? selection?.context.page);
@@ -94,11 +104,11 @@ export default function ReaderLearningLayer({
     });
   };
 
-  const activeEvidence = challenge?.mode === "scored"
+  const activeEvidence = challenge?.mode === "scored" && challenge.answer.kind === "evidence-hunt"
     ? challenge.answer.acceptedEvidenceIds
       .map((id) => challenge.evidence.find((item) => item.id === id))
       .find((item): item is ChallengeEvidence => Boolean(item))
-    : undefined;
+    : challenge?.evidence[0];
 
   return (
     <>
@@ -108,6 +118,18 @@ export default function ReaderLearningLayer({
           onEvidenceHunt={context && index ? startEvidenceHunt : undefined}
           onContext={onOpenContext}
           onTrace={onOpenTrace}
+          onUnderstand={() => {
+            onSelectionMenuOpenChange(false);
+            setLearningRequest("understand");
+          }}
+          onVisualize={() => {
+            onSelectionMenuOpenChange(false);
+            setLearningRequest("visualize");
+          }}
+          onPlay={() => {
+            onSelectionMenuOpenChange(false);
+            setLearningRequest("play");
+          }}
           onCopy={onCopy}
           onClose={() => onSelectionMenuOpenChange(false)}
         />
@@ -132,7 +154,12 @@ export default function ReaderLearningLayer({
             initialReturnRecord={returnRecord}
             onFocusPaper={onFocusPaper}
             onNavigateEvidence={showEvidence}
-            onChallengeStateChange={setReturnRecord}
+            onChallengeStateChange={(record) => {
+              setReturnRecord(record);
+              if (record.lifecycle === "complete") {
+                setCompletedChallengeIds((previous) => new Set([...previous, record.challengeId]));
+              }
+            }}
           />
         </aside>
       )}
@@ -156,6 +183,17 @@ export default function ReaderLearningLayer({
           </p>
         </aside>
       )}
+
+      <LearningModes
+        index={index}
+        resolver={resolver}
+        context={context}
+        completedChallengeIds={completedChallengeIds}
+        onStartChallenge={startChallenge}
+        onTrace={onOpenTrace}
+        requestedAction={learningRequest}
+        onRequestedActionHandled={() => setLearningRequest(undefined)}
+      />
     </>
   );
 }

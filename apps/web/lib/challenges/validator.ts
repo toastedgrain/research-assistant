@@ -22,6 +22,28 @@ function choicesAreDistinct(choices: ChallengeChoice[]): boolean {
   return choices.length > 0 && ids.size === choices.length && labels.size === choices.length;
 }
 
+function choicePayloadChoices(challenge: ChallengeSpec): ChallengeChoice[] | null {
+  const payload = challenge.payload;
+  return payload.kind === "multiple-choice" ||
+    payload.kind === "figure-detective" ||
+    payload.kind === "prediction" ||
+    payload.kind === "claim-evidence" ||
+    payload.kind === "paper-check" ||
+    payload.kind === "paper-vs-paper"
+    ? payload.choices
+    : null;
+}
+
+function orderingPayloadItems(challenge: ChallengeSpec): ChallengeChoice[] | null {
+  const payload = challenge.payload;
+  return payload.kind === "ordering" ||
+    payload.kind === "figure-build" ||
+    payload.kind === "timeline" ||
+    payload.kind === "evolution"
+    ? payload.items
+    : null;
+}
+
 function evidenceKindsMatch(
   relationship: GroundedRelationship,
   kinds: readonly SourceEvidenceKind[],
@@ -63,7 +85,9 @@ function validatePayload(challenge: ChallengeSpec, errors: string[]): void {
     errors.push("Challenge type does not match its payload.");
     return;
   }
-  if (challenge.payload.kind === "multiple-choice" && !choicesAreDistinct(challenge.payload.choices)) {
+  const choices = choicePayloadChoices(challenge);
+  const items = orderingPayloadItems(challenge);
+  if (choices && !choicesAreDistinct(choices)) {
     errors.push("Choice labels must be distinct.");
   }
   if (challenge.payload.kind === "concept-match") {
@@ -71,7 +95,7 @@ function validatePayload(challenge: ChallengeSpec, errors: string[]): void {
       errors.push("Match items must be distinct.");
     }
   }
-  if (challenge.payload.kind === "ordering" && !choicesAreDistinct(challenge.payload.items)) {
+  if (items && !choicesAreDistinct(items)) {
     errors.push("Order items must be distinct.");
   }
   if (challenge.payload.kind === "evidence-hunt" && !challenge.payload.acceptedEvidenceKinds.includes("passage")) {
@@ -83,8 +107,10 @@ function validateAnswer(challenge: Extract<ChallengeSpec, { mode: "scored" }>, e
   const evidenceById = new Map(
     challenge.evidence.map((item) => [item.id, { kind: item.source.kind }]),
   );
-  if (challenge.answer.kind === "choice" && challenge.payload.kind === "multiple-choice") {
-    const choiceIds = new Set(challenge.payload.choices.map((choice) => choice.id));
+  const choices = choicePayloadChoices(challenge);
+  const items = orderingPayloadItems(challenge);
+  if (challenge.answer.kind === "choice" && choices) {
+    const choiceIds = new Set(choices.map((choice) => choice.id));
     if (challenge.answer.correctChoiceIds.length === 0 || challenge.answer.correctChoiceIds.some((id) => !choiceIds.has(id))) {
       errors.push("Expected answer must reference an available choice.");
     }
@@ -114,8 +140,8 @@ function validateAnswer(challenge: Extract<ChallengeSpec, { mode: "scored" }>, e
     );
     return;
   }
-  if (challenge.answer.kind === "order" && challenge.payload.kind === "ordering") {
-    const itemIds = new Set(challenge.payload.items.map((item) => item.id));
+  if (challenge.answer.kind === "order" && items) {
+    const itemIds = new Set(items.map((item) => item.id));
     const answer = challenge.answer;
     if (
       answer.itemIds.length !== itemIds.size ||

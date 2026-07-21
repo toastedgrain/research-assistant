@@ -14,7 +14,7 @@ interface ThreadPageData {
 interface BuildThreadInput {
   paperId: string;
   concept: string;
-  pages: ThreadPageData[];
+  pages: readonly ThreadPageData[];
   sections: Section[];
   assets: Asset[];
 }

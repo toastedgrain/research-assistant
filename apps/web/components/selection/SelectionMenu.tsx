@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenText, Copy, LocateFixed, Route, X } from "lucide-react";
+import { BookOpenText, BrainCircuit, Copy, LocateFixed, Route, Sparkles, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { SelectionAnchor } from "../../lib/selection/dom";
 
@@ -9,6 +9,9 @@ interface Props {
   onEvidenceHunt?: () => void;
   onContext: () => void;
   onTrace: () => void;
+  onUnderstand?: () => void;
+  onVisualize?: () => void;
+  onPlay?: () => void;
   onCopy: () => void;
   onClose: () => void;
 }
@@ -21,6 +24,9 @@ export default function SelectionMenu({
   onEvidenceHunt,
   onContext,
   onTrace,
+  onUnderstand,
+  onVisualize,
+  onPlay,
   onCopy,
   onClose,
 }: Props) {
@@ -37,7 +43,7 @@ export default function SelectionMenu({
       ref={toolbarRef}
       role="toolbar"
       aria-label="Selection actions"
-      className="fixed z-50 flex max-w-[calc(100vw-24px)] -translate-x-1/2 overflow-hidden rounded-md border border-neutral-300 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+      className="fixed z-50 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap overflow-hidden rounded-md border border-neutral-300 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
       style={{ left: anchor.x, top: anchor.y }}
       onMouseDown={(event) => event.preventDefault()}
     >
@@ -55,6 +61,24 @@ export default function SelectionMenu({
         <Route aria-hidden="true" size={15} />
         Trace
       </button>
+      {onUnderstand && (
+        <button type="button" className={actionClass} onClick={onUnderstand} title="Open source-led understanding support">
+          <BrainCircuit aria-hidden="true" size={15} />
+          Understand
+        </button>
+      )}
+      {onVisualize && (
+        <button type="button" className={actionClass} onClick={onVisualize} title="Visualize this source concept">
+          <BookOpenText aria-hidden="true" size={15} />
+          Visualize
+        </button>
+      )}
+      {onPlay && (
+        <button type="button" className={actionClass} onClick={onPlay} title="Start a source-grounded learning interaction">
+          <Sparkles aria-hidden="true" size={15} />
+          Play
+        </button>
+      )}
       <button type="button" className={actionClass} onClick={onCopy} title="Copy selected text">
         <Copy aria-hidden="true" size={15} />
         Copy

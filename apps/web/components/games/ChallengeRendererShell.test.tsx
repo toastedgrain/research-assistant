@@ -81,4 +81,26 @@ describe("ChallengeRendererShell", () => {
       ),
     ).toBe("");
   });
+
+  it("renders controlled structural and unscored prediction interactions with source access", () => {
+    const evidence = validChallenge().evidence[0];
+    const build: ChallengeSpec = {
+      id: "build-1", type: "figure-build", mode: "scored", paperIds: ["renderer-paper"], concepts: [], evidence: [evidence],
+      prompt: "Build the paper structure.", difficulty: "medium",
+      payload: { kind: "figure-build", diagramLabel: "Paper structure", items: [{ id: "method", label: "Method" }, { id: "result", label: "Result" }] },
+      answer: { kind: "order", itemIds: ["method", "result"], relationships: [{ id: "adjacency:method:result", evidenceIds: [evidence.id], requiredEvidenceKinds: ["passage"], reason: evidence.reason }] },
+      hints: [], scoring: { maxPoints: 1, partialCredit: false },
+    };
+    const prediction: ChallengeSpec = {
+      id: "prediction-1", type: "prediction", mode: "explore", paperIds: ["renderer-paper"], concepts: [], evidence: [evidence],
+      prompt: "Predict before reveal.", difficulty: "medium",
+      payload: { kind: "prediction", choices: [{ id: "higher", label: "Higher" }, { id: "same", label: "Same" }], resultEvidenceId: evidence.id }, hints: [],
+    };
+    const buildMarkup = renderToStaticMarkup(<ChallengeRendererShell challenge={build} resolver={resolver} onNavigateEvidence={() => undefined} />);
+    const predictionMarkup = renderToStaticMarkup(<ChallengeRendererShell challenge={prediction} resolver={resolver} onNavigateEvidence={() => undefined} />);
+    expect(buildMarkup).toContain("Paper structure");
+    expect(buildMarkup).toContain("Move Method down");
+    expect(predictionMarkup).toContain("Reveal the paper’s result");
+    expect(predictionMarkup).toContain("Explore (unscored)");
+  });
 });

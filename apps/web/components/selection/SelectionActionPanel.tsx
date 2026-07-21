@@ -114,8 +114,8 @@ export default function SelectionActionPanel({
                   {group.section?.title ?? "Unsectioned"}
                 </h2>
                 {group.occurrences.map((occurrence) => (
+                  <div key={occurrence.id}>
                   <button
-                    key={occurrence.id}
                     type="button"
                     className={evidenceButtonClass}
                     onClick={() => onNavigateEvidence(occurrence.evidence)}
@@ -125,6 +125,21 @@ export default function SelectionActionPanel({
                     </span>
                     <span className="line-clamp-3">{occurrence.passage.text}</span>
                   </button>
+                  {occurrence.nearbyAssets.length > 0 && (
+                    <div className="flex flex-wrap gap-1 border-t border-neutral-100 px-4 py-2 dark:border-neutral-900">
+                      {occurrence.nearbyAssets.map((asset) => (
+                        <button
+                          key={asset.assetId}
+                          type="button"
+                          onClick={() => onOpenAsset(asset.assetId)}
+                          className="min-h-8 border border-neutral-300 px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+                        >
+                          Open {asset.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  </div>
                 ))}
               </section>
             ))}

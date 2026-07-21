@@ -98,3 +98,79 @@ export interface ConceptThread {
   occurrences: ConceptOccurrence[];
   groups: ConceptThreadGroup[];
 }
+
+export type DifficultySignalKind =
+  | "sentence-complexity"
+  | "symbol-density"
+  | "citation-density"
+  | "introduced-term-density"
+  | "technical-term-density"
+  | "parenthetical-density"
+  | "asset-dependency";
+
+export interface DifficultySignal {
+  kind: DifficultySignalKind;
+  label: string;
+  value: number;
+}
+
+/** A relative reading-aid signal, never a claim about research quality. */
+export interface LearningRegion {
+  id: string;
+  sectionId: string;
+  pageStart: number;
+  pageEnd: number;
+  difficulty: number;
+  reasons: DifficultySignal[];
+  concepts: ConceptRef[];
+  assets: AssetRef[];
+}
+
+export type PrerequisiteNodeKind = "source-derived" | "suggested";
+
+export interface PrerequisiteNode {
+  id: string;
+  label: string;
+  kind: PrerequisiteNodeKind;
+  generated: boolean;
+  source: SourceEvidence[];
+}
+
+export interface PrerequisiteEdge {
+  from: string;
+  to: string;
+  kind: PrerequisiteNodeKind;
+  generated: boolean;
+  source: SourceEvidence[];
+}
+
+export interface PrerequisiteGraph {
+  rootConceptId: string;
+  nodes: PrerequisiteNode[];
+  edges: PrerequisiteEdge[];
+  generated: boolean;
+  source: SourceEvidence[];
+}
+
+export interface DiagramNode {
+  id: string;
+  label: string;
+  kind: "concept" | "source" | "asset";
+  evidence: SourceEvidence[];
+}
+
+export interface DiagramEdge {
+  from: string;
+  to: string;
+  label: string;
+  evidence: SourceEvidence[];
+}
+
+/** Controlled, renderer-owned diagram data. Never executable generated UI. */
+export interface MiniDiagram {
+  id: string;
+  label: string;
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  source: SourceEvidence[];
+}

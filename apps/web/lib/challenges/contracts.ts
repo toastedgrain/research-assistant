@@ -4,7 +4,15 @@ export type ChallengeType =
   | "multiple-choice"
   | "concept-match"
   | "ordering"
-  | "evidence-hunt";
+  | "evidence-hunt"
+  | "figure-build"
+  | "figure-detective"
+  | "prediction"
+  | "claim-evidence"
+  | "paper-check"
+  | "paper-vs-paper"
+  | "timeline"
+  | "evolution";
 
 export type ChallengeMode = "scored" | "explore";
 export type ChallengeDifficulty = "easy" | "medium" | "hard";
@@ -62,6 +70,56 @@ export interface OrderingPayload {
   items: ChallengeChoice[];
 }
 
+/** Controlled topology only; it is never inferred from figure pixels. */
+export interface FigureBuildPayload {
+  kind: "figure-build";
+  items: ChallengeChoice[];
+  diagramLabel: string;
+}
+
+export interface FigureDetectivePayload {
+  kind: "figure-detective";
+  choices: ChallengeChoice[];
+  assetId: string;
+}
+
+/** Prediction compares a learner's thought with a revealed paper result; it is unscored. */
+export interface PredictionPayload {
+  kind: "prediction";
+  choices: ChallengeChoice[];
+  resultEvidenceId: string;
+}
+
+export interface ClaimEvidencePayload {
+  kind: "claim-evidence";
+  choices: ChallengeChoice[];
+  claimEvidenceId: string;
+  /** Literal support can be scored; qualified, limited, and unresolved links remain Explore. */
+  relationship: "supports" | "qualifies" | "scope-limits" | "unresolved";
+}
+
+export interface PaperCheckPayload {
+  kind: "paper-check";
+  choices: ChallengeChoice[];
+  category: "terminology" | "method" | "evidence" | "result";
+}
+
+export interface PaperVsPaperPayload {
+  kind: "paper-vs-paper";
+  choices: ChallengeChoice[];
+  paperLabels: Record<string, string>;
+}
+
+export interface TimelinePayload {
+  kind: "timeline";
+  items: ChallengeChoice[];
+}
+
+export interface EvolutionPayload {
+  kind: "evolution";
+  items: ChallengeChoice[];
+}
+
 /** The first research-native interaction: find a verified passage in the primary paper. */
 export interface EvidenceHuntPayload {
   kind: "evidence-hunt";
@@ -98,7 +156,15 @@ export type ChallengePayload =
   | MultipleChoicePayload
   | ConceptMatchPayload
   | OrderingPayload
-  | EvidenceHuntPayload;
+  | EvidenceHuntPayload
+  | FigureBuildPayload
+  | FigureDetectivePayload
+  | PredictionPayload
+  | ClaimEvidencePayload
+  | PaperCheckPayload
+  | PaperVsPaperPayload
+  | TimelinePayload
+  | EvolutionPayload;
 
 export type ChallengeAnswer =
   | ChoiceAnswer
@@ -180,11 +246,49 @@ export type EvidenceHuntChallenge =
   | ScoredChallenge<"evidence-hunt", EvidenceHuntPayload, EvidenceHuntAnswer>
   | ExploreChallenge<"evidence-hunt", EvidenceHuntPayload>;
 
+export type FigureBuildChallenge =
+  | ScoredChallenge<"figure-build", FigureBuildPayload, OrderAnswer>
+  | ExploreChallenge<"figure-build", FigureBuildPayload>;
+
+export type FigureDetectiveChallenge =
+  | ScoredChallenge<"figure-detective", FigureDetectivePayload, ChoiceAnswer>
+  | ExploreChallenge<"figure-detective", FigureDetectivePayload>;
+
+export type PredictionChallenge = ExploreChallenge<"prediction", PredictionPayload>;
+
+export type ClaimEvidenceChallenge =
+  | ScoredChallenge<"claim-evidence", ClaimEvidencePayload, ChoiceAnswer>
+  | ExploreChallenge<"claim-evidence", ClaimEvidencePayload>;
+
+export type PaperCheckChallenge =
+  | ScoredChallenge<"paper-check", PaperCheckPayload, ChoiceAnswer>
+  | ExploreChallenge<"paper-check", PaperCheckPayload>;
+
+export type PaperVsPaperChallenge =
+  | ScoredChallenge<"paper-vs-paper", PaperVsPaperPayload, ChoiceAnswer>
+  | ExploreChallenge<"paper-vs-paper", PaperVsPaperPayload>;
+
+export type TimelineChallenge =
+  | ScoredChallenge<"timeline", TimelinePayload, OrderAnswer>
+  | ExploreChallenge<"timeline", TimelinePayload>;
+
+export type EvolutionChallenge =
+  | ScoredChallenge<"evolution", EvolutionPayload, OrderAnswer>
+  | ExploreChallenge<"evolution", EvolutionPayload>;
+
 export type ChallengeSpec =
   | MultipleChoiceChallenge
   | ConceptMatchChallenge
   | OrderingChallenge
-  | EvidenceHuntChallenge;
+  | EvidenceHuntChallenge
+  | FigureBuildChallenge
+  | FigureDetectiveChallenge
+  | PredictionChallenge
+  | ClaimEvidenceChallenge
+  | PaperCheckChallenge
+  | PaperVsPaperChallenge
+  | TimelineChallenge
+  | EvolutionChallenge;
 
 export type ChallengeLifecycle = "idle" | "active" | "submitted" | "revealed" | "complete";
 
