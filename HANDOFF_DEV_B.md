@@ -1,7 +1,7 @@
 # Developer B handoff — Exploration, Workspace & Accessibility
 
-**Status:** Phases 1–3 complete and merged to `main`. Phase 4 not started.
-**Last phase merge:** `df2b67b` — *Merge explore/paper-map: deterministic paper structure*
+**Status:** Phases 1–4 complete. Phase 5 is next.
+**Last completed branch:** `workspace/collections` — IndexedDB-backed research workspaces.
 **Working tree:** clean, `main` in sync with `origin/main`, no servers running.
 
 This document hands off the Developer B track to whoever picks it up next. It assumes you
@@ -181,20 +181,39 @@ Table 1 is under "Why Self-Attention", and bibliography entries do not spill int
 "Conclusion". The full reader regression also passed: figure overlay, persistence while
 scrolling, citation split view, Escape, and dark-mode crop treatment.
 
+### Phase 4 — Workspace collections
+
+- **`apps/web/lib/workspace/types.ts`** — the versioned collection contract and
+  `WorkspaceRepository` boundary. Papers and evidence are durable references, not copied
+  extracted content.
+- **`apps/web/lib/workspace/indexed-db.ts`** — the sole browser persistence source. There
+  is no localStorage or filesystem fallback. `memory.ts` implements the same contract for
+  deterministic consumers, never as a silent persistence fallback.
+- **`apps/web/components/workspace/WorkspaceShell.tsx`** — create, rename and delete
+  collections; add the currently open paper; preserve source-aware notes; and distinguish
+  available papers from retained references whose local blob has disappeared.
+- **`/workspace` and `/workspace/<digest>`** — client-only routes that keep browser-only
+  IndexedDB outside server rendering. Exploration links into the paper-specific route.
+
+Browser verification covered collection and note persistence across reload, paper links
+while the API blob was available, the same retained paper rendered as “Unavailable locally”
+with no dead link after the API was stopped, and deletion cleanup.
+
 ---
 
 ## 7. Current state
 
 ```
-main  df2b67b  (= origin/main, clean)
+main  (updated after each green phase; see git log)
 ├── explore/shared-contracts   merged, pushed
 ├── explore/figure-atlas       merged, pushed
-└── explore/paper-map          merged, pushed
+├── explore/paper-map          merged, pushed
+└── workspace/collections      complete, pushed
 ```
 
-Tests: **94 web** (vitest) + **151 Python** (pytest), all green. Typecheck and production
+Tests: **106 web** (vitest) + **151 Python** (pytest), all green. Typecheck and production
 build clean.
-No background processes; ports 8000 and 3003 are free.
+No background processes; ports 8000 and 3000 are free.
 
 Files added by Developer B so far:
 
@@ -209,22 +228,24 @@ apps/web/components/explore/ExploreShell.tsx
 apps/web/components/explore/FigureAtlas.tsx
 apps/web/components/explore/PaperMap.tsx
 apps/web/app/explore/[digest]/page.tsx
+apps/web/lib/workspace/types.ts
+apps/web/lib/workspace/collections.ts    + collections.test.ts
+apps/web/lib/workspace/indexed-db.ts     + indexed-db.test.ts
+apps/web/lib/workspace/memory.ts
+apps/web/lib/workspace/view-model.ts     + view-model.test.ts
+apps/web/components/workspace/WorkspaceShell.tsx
+apps/web/app/workspace/page.tsx
+apps/web/app/workspace/[digest]/page.tsx
 ```
 
-Nothing else in the repo was modified. `Reader.tsx` has not been touched.
+`apps/web/package*.json` add the test-only `fake-indexeddb` dependency. `Reader.tsx` has
+not been touched.
 
 ---
 
 ## 8. What is next — the remaining phase plan
 
 Follows the doc's Dev B staging (§17). One branch per phase; merge to `main` when green.
-
-### Phase 4 — `workspace/collections` (§B8, §12)
-The persistence layer. Define `WorkspaceRepository` (and later `ProgressRepository`,
-`AnalysisRepository`) and implement over IndexedDB. **One canonical store — do not scatter
-state across localStorage and IndexedDB.** Required test (§19): a pinned source reference
-survives a persistence round-trip, and a deleted paper is handled gracefully.
-Store `SourceEvidence` references, **not detached copies** of content (§B9).
 
 ### Phase 5 — `accessibility/reflow` (§10.1)
 Reflow two-column PDF text into a semantic reading layout: heading hierarchy, paragraphs,
