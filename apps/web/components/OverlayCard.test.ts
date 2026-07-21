@@ -81,6 +81,30 @@ describe("transitionPopup", () => {
 });
 
 describe("OverlayCard", () => {
+  it("preserves the rail card contract for the unmigrated Reader", () => {
+    const markup = renderToStaticMarkup(createElement(OverlayCard, {
+      asset,
+      card: { assetId: "fig-1", anchorMentionId: null, hard: false, order: 0 },
+      mentions: [],
+      currentPage: 2,
+      focused: false,
+      reciprocal: false,
+      anchorVisible: true,
+      positioned: true,
+      y: 16,
+      scrollDriven: false,
+      onClose: vi.fn(),
+      onFocus: vi.fn(),
+      onHoverChange: vi.fn(),
+      onJumpToMention: vi.fn(),
+      onExpand: vi.fn(),
+    }));
+
+    expect(markup).toContain('data-rail-card="fig-1"');
+    expect(markup).not.toContain('data-popup-asset="fig-1"');
+    expect(markup).toContain('title="Enlarge figure"');
+  });
+
   it("clamps a drag position to the viewport edge inset", () => {
     expect(clampPopupPosition(
       { x: -20, y: 900 },
