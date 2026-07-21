@@ -43,6 +43,29 @@ Known coordination points: Dev A must consume `CrossPaperContextProvider` throug
 
 ---
 
+### DEV A PHASE CHECKPOINT
+
+Phase: 3 - Learning engine, Learn/Quest modes, and major games
+Dev A checkpoint SHA: `848a7aa14e1f4d32d0259dcdcfe5497949d0d498`
+Branch: `phase-1-a`
+Features completed: deterministic learning objects, relative difficulty regions, source-derived/suggested prerequisite distinction, controlled MiniDiagram data, shared `LearningContextProvider`, Learn and Quest overlays, source-grounded Quick Quiz/Concept Match/Ordering/Figure Build/Figure Detective/Claim vs Evidence/Paper Check, unscored Predict Before Reveal, and Paper Quest checkpoints.
+Tests: 176 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Limitations: progress is session-local until an agreed cross-team progress persistence contract exists; no browser surface is available in this CLI environment for visual walkthroughs.
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 3 SHA: `848a7aa14e1f4d32d0259dcdcfe5497949d0d498`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Latest main changes since the prior snapshot: none.
+Integration commit SHA: `6c9df164ca6a76439bc63611e7424fec09a1ec05`
+Conflicts: none; the frozen SHA was already an ancestor.
+Resolution: no merge delta; empty checkpoint records the exact inspected snapshot after the Phase 3 gate.
+Tests after checkpoint: 176 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: Phase 4 must use Dev B's `CrossPaperContextProvider` only; it must not import exploration/workspace UI or introduce a second cross-paper graph.
+
+---
+
 ## What this is, in one paragraph
 
 A PDF reader for arXiv AI/ML papers. A sentence on page 3 says "as shown in Figure 1";
