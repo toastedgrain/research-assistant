@@ -37,8 +37,10 @@ no affordance.
 unmeasured — there are no hand-labelled bounding boxes, and `eval/` reports that as
 UNMEASURED rather than inventing a number. Mention precision/recall are measured on two
 labelled pages of one paper, which is a smoke test with a percentage attached, not the
-30-paper golden set spec §11 asks for. Pins do not persist across sessions, and spec §3's
-product metrics are not instrumented.
+30-paper golden set spec §11 asks for. Verified evidence pins, collections, board state, and
+learning progress now persist through IndexedDB; product metrics remain uninstrumented.
+`STAGE_6_INTEGRATION_ACCEPTANCE.md` is the current expansion status and records the browser
+acceptance gate separately from automated verification.
 
 Two source-of-truth documents:
 
@@ -185,6 +187,10 @@ cd apps/web && npm run dev
 - **PyMuPDF emits one "line" per table *cell*, not per row.** So a table's columns are
   not gaps inside a line; they are several lines sharing a vertical band. `tabular.py`
   tests both signatures for this reason.
+- **Wordy table rows can look like body paragraphs.** Caption-to-body barriers truncated
+  Attention Tables 2 and 3 even though the tabular core was detected. Grow a conservative
+  edge-aligned row cluster from the verified core and test it on raw real-paper geometry;
+  do not globally weaken the body-text barrier.
 - **A textual table defeats every word/width/digit heuristic.** Attention's Table 1 is
   one 39-word block, 59% of the page wide, with no digits. Only column structure
   separates it from a paragraph.

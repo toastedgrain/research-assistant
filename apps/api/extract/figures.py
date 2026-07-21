@@ -18,7 +18,7 @@ with no defensible region produces a warning and no asset, never an empty crop.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from statistics import median
 
 import fitz
@@ -47,6 +47,11 @@ _BODY_MIN_WORDS = 12
 # How far outside its drawn extent a figure may reach to collect a label. Under one line
 # height, so it can never step into the surrounding prose.
 _LABEL_GAP = 0.012
+# A real LaTeX table can emit one text block per row. Some rows are wordy enough to look
+# like prose in isolation, so attach only short, edge-aligned rows to an already tabular
+# core. The following paragraph is taller or starts at the body margin and stays a barrier.
+_TABLE_ROW_MAX_HEIGHT = 0.025
+_TABLE_EDGE_TOLERANCE = 0.055
 
 
 @dataclass(frozen=True)
@@ -173,6 +178,52 @@ def _page_blocks(page: fitz.Page) -> list[_Block]:
                 )
             )
     return blocks
+
+
+def _table_members(blocks: list[_Block], caption: BBox) -> set[_Block]:
+    """Return the conservative row cluster belonging to a table caption.
+
+    PyMuPDF split Attention's Table 2 into one block for the header, one per data row,
+    and marked only the header as tabular. This grows through edge-aligned single-row
+    blocks, but not through ordinary body paragraphs.
+    """
+    candidates = [
+        block
+        for block in blocks
+        if block.bbox[1] >= caption[3] - 0.005
+        and _vertical_gap(block.bbox, caption) <= _SEARCH_WINDOW
+        and _x_overlaps(block.bbox, caption)
+        and parse_caption_start(block.text) is None
+        and not (not block.is_tabular and looks_like_heading(block.text))
+    ]
+    tabular = [block for block in candidates if block.is_tabular]
+    if not tabular:
+        return set()
+
+    seed = min(tabular, key=lambda block: _vertical_gap(block.bbox, caption))
+    members = {seed}
+    region = seed.bbox
+    remaining = [block for block in candidates if block is not seed]
+    grew = True
+    while grew:
+        grew = False
+        for block in list(remaining):
+            height = block.bbox[3] - block.bbox[1]
+            row_aligned = (
+                height <= _TABLE_ROW_MAX_HEIGHT
+                and abs(block.bbox[0] - region[0]) <= _TABLE_EDGE_TOLERANCE
+                and abs(block.bbox[2] - region[2]) <= _TABLE_EDGE_TOLERANCE
+            )
+            if (
+                _vertical_gap(block.bbox, region) <= _CLUSTER_GAP
+                and _x_overlaps(block.bbox, region)
+                and (block.is_tabular or not block.is_body_prose or row_aligned)
+            ):
+                members.add(block)
+                region = _union(region, block.bbox)
+                remaining.remove(block)
+                grew = True
+    return members
 
 
 def _blocked(a: BBox, b: BBox, barriers: list[BBox]) -> bool:
@@ -312,6 +363,9 @@ def detect_assets(doc: fitz.Document) -> tuple[list[DetectedAsset], list[str]]:
     for asset_id, (anchor, caption_block, page_index, blocks, graphics) in claims.items():
         above = _CONTENT_ABOVE_CAPTION[anchor.kind]
         other_blocks = [b for b in blocks if b is not caption_block]
+        if anchor.kind == "table":
+            table_members = _table_members(other_blocks, caption_block.bbox)
+            other_blocks = [replace(block, is_tabular=True) if block in table_members else block for block in other_blocks]
         # Prose, other captions and section headings bound a region; a region may never
         # grow across one. Headings are exempted for tabular blocks, since a numeric row
         # can superficially resemble a numbered heading.

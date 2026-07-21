@@ -4,6 +4,7 @@ import { Image, LocateFixed, X } from "lucide-react";
 import type { ConceptThread } from "../../lib/learning/types";
 import type { ResearchContext } from "../../lib/research-context/types";
 import type { SourceEvidence } from "../../lib/evidence/source";
+import { createSourceEvidence } from "../../lib/evidence/source";
 
 interface Props {
   mode: "context" | "thread";
@@ -29,9 +30,9 @@ export default function SelectionActionPanel({
     <aside className="fixed bottom-0 right-0 top-[45px] z-30 flex w-[min(380px,100vw)] flex-col border-l border-neutral-300 bg-white text-neutral-900 shadow-xl dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-neutral-200 px-4 dark:border-neutral-800">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">
+          <h2 className="truncate text-sm font-semibold">
             {mode === "thread" ? context.selection?.text : context.section?.title || "Source context"}
-          </p>
+          </h2>
           <p className="text-xs text-neutral-500">
             {mode === "thread" ? `${thread?.occurrences.length ?? 0} occurrences` : `Page ${(context.selection?.page ?? 0) + 1}`}
           </p>
@@ -65,14 +66,13 @@ export default function SelectionActionPanel({
                 type="button"
                 className={evidenceButtonClass}
                 onClick={() =>
-                  onNavigateEvidence({
-                    paperId: context.paper.paperId,
+                  onNavigateEvidence(createSourceEvidence(context.paper.paperId, {
                     page: context.sourceWindow.selected!.page,
                     kind: "passage",
                     text: context.sourceWindow.selected!.text,
                     bbox: context.sourceWindow.selected!.bbox,
                     sectionId: context.sourceWindow.selected!.sectionId,
-                  })
+                  }))
                 }
               >
                 <LocateFixed aria-hidden="true" className="mt-0.5 shrink-0" size={15} />
@@ -108,6 +108,10 @@ export default function SelectionActionPanel({
 
         {mode === "thread" && thread && (
           <div>
+            <div className="border-b border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
+              <strong className="block">Research trail for {thread.concept.label}</strong>
+              Ordered source occurrences are grouped by the paper&apos;s own sections. Nearby assets and literal citation landmarks remain attached.
+            </div>
             {thread.groups.map((group, groupIndex) => (
               <section key={group.section?.sectionId ?? `group-${groupIndex}`}>
                 <h2 className="sticky top-0 border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
@@ -138,6 +142,11 @@ export default function SelectionActionPanel({
                         </button>
                       ))}
                     </div>
+                  )}
+                  {occurrence.citationLandmarks.length > 0 && (
+                    <p className="border-t border-neutral-100 px-4 py-2 text-[11px] text-violet-700 dark:border-neutral-900 dark:text-violet-300">
+                      Citation landmarks: {occurrence.citationLandmarks.join(", ")}
+                    </p>
                   )}
                   </div>
                 ))}

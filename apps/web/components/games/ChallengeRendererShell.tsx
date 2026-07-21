@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronUp, LocateFixed } from "lucide-react";
+import { ChevronDown, ChevronUp, LocateFixed, Pin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { scoreChallenge } from "../../lib/challenges/challenge";
+import { lifecycleAfterScore, scoreChallenge } from "../../lib/challenges/challenge";
 import type {
   ChallengeEvidence,
   ChallengeLifecycle,
@@ -12,6 +12,8 @@ import type {
 } from "../../lib/challenges/contracts";
 import { evaluateEvidenceHunt } from "../../lib/challenges/evidence-hunt";
 import { validateChallenge } from "../../lib/challenges/validator";
+import { blobUrl } from "../../lib/api";
+import { isSourceEvidence } from "../../lib/evidence/source";
 import type { EvidenceResolver } from "../../lib/evidence/resource";
 import { passageForSelection, type PaperLearningIndex } from "../../lib/learning/paper-index";
 import type { SelectionContext } from "../../lib/research-context/types";
@@ -29,6 +31,7 @@ interface Props {
   position?: number;
   initialReturnRecord?: ChallengeReturnRecord;
   onNavigateEvidence: (evidence: ChallengeEvidence) => void;
+  onPinEvidence?: (evidence: ChallengeEvidence) => void;
   onFocusPaper?: () => void;
   onChallengeStateChange?: (record: ChallengeReturnRecord) => void;
 }
@@ -36,11 +39,14 @@ interface Props {
 function initialResponse(challenge: ChallengeSpec, record?: ChallengeReturnRecord): LearnerResponse {
   if (record?.challengeId === challenge.id) return record.response;
   if (challenge.payload.kind === "concept-match") return { kind: "pairs", pairs: {} };
+  if (challenge.payload.kind === "paper-check") return { kind: "paper-check", answers: {} };
   if (
     challenge.payload.kind === "ordering" ||
     challenge.payload.kind === "figure-build" ||
     challenge.payload.kind === "timeline" ||
-    challenge.payload.kind === "evolution"
+    challenge.payload.kind === "evolution" ||
+    challenge.payload.kind === "prerequisite" ||
+    challenge.payload.kind === "thread-expedition"
   ) {
     const itemIds = challenge.payload.items.map((item) => item.id);
     return { kind: "order", itemIds: itemIds.length > 1 ? [itemIds.at(-1) as string, ...itemIds.slice(0, -1)] : itemIds };
@@ -58,9 +64,12 @@ function ready(response: LearnerResponse, challenge: ChallengeSpec): boolean {
   if (response.kind === "pairs" && challenge.payload.kind === "concept-match") {
     return Object.keys(response.pairs).length === challenge.payload.concepts.length;
   }
+  if (response.kind === "paper-check" && challenge.payload.kind === "paper-check") {
+    return Object.keys(response.answers).length === challenge.payload.questions.length;
+  }
   if (
     response.kind === "order" &&
-    (challenge.payload.kind === "ordering" || challenge.payload.kind === "figure-build" || challenge.payload.kind === "timeline" || challenge.payload.kind === "evolution")
+    (challenge.payload.kind === "ordering" || challenge.payload.kind === "figure-build" || challenge.payload.kind === "timeline" || challenge.payload.kind === "evolution" || challenge.payload.kind === "prerequisite" || challenge.payload.kind === "thread-expedition")
   ) {
     return response.itemIds.length === challenge.payload.items.length;
   }
@@ -69,11 +78,15 @@ function ready(response: LearnerResponse, challenge: ChallengeSpec): boolean {
 
 function sourceLabel(evidence: ChallengeEvidence, resolver?: EvidenceResolver): string {
   const resolved = resolver?.resolve(evidence);
-  const page = `p. ${evidence.source.page + 1}`;
+  const page = isSourceEvidence(evidence.source) ? `p. ${evidence.source.page + 1}` : "paper metadata";
   if (resolved?.status === "resolved") {
     return [resolved.label, page, resolved.section?.title].filter(Boolean).join(" / ");
   }
-  return `${evidence.source.kind} / ${page}`;
+  return `${evidence.source.kind === "metadata" ? evidence.source.field : evidence.source.kind} / ${page}`;
+}
+
+function evidenceExcerpt(evidence: ChallengeEvidence): string {
+  return isSourceEvidence(evidence.source) ? evidence.source.text ?? evidence.reason : evidence.source.value;
 }
 
 /**
@@ -87,6 +100,7 @@ export default function ChallengeRendererShell({
   position,
   initialReturnRecord,
   onNavigateEvidence,
+  onPinEvidence,
   onFocusPaper,
   onChallengeStateChange,
 }: Props) {
@@ -127,7 +141,6 @@ export default function ChallengeRendererShell({
     challenge.payload.kind === "figure-detective" ||
     challenge.payload.kind === "prediction" ||
     challenge.payload.kind === "claim-evidence" ||
-    challenge.payload.kind === "paper-check" ||
     challenge.payload.kind === "paper-vs-paper"
       ? challenge.payload
       : null;
@@ -136,22 +149,31 @@ export default function ChallengeRendererShell({
     challenge.payload.kind === "ordering" ||
     challenge.payload.kind === "figure-build" ||
     challenge.payload.kind === "timeline" ||
-    challenge.payload.kind === "evolution"
+    challenge.payload.kind === "evolution" ||
+    challenge.payload.kind === "prerequisite" ||
+    challenge.payload.kind === "thread-expedition"
       ? challenge.payload
       : null;
   const prediction = challenge.payload.kind === "prediction" ? challenge.payload : null;
+  const detective = challenge.payload.kind === "figure-detective" ? challenge.payload : null;
+  const paperCheck = challenge.payload.kind === "paper-check" ? challenge.payload : null;
   const evidenceHunt = challenge.type === "evidence-hunt" && challenge.payload.kind === "evidence-hunt"
     ? challenge
     : null;
   const selectedPassage = evidenceHuntContext?.selection
     ? passageForSelection(evidenceHuntContext.index, evidenceHuntContext.selection)
     : undefined;
+  const detectiveAsset = detective
+    ? challenge.evidence
+      .map((item) => resolver?.resolve(item))
+      .find((item) => item?.status === "resolved" && item.asset?.asset_id === detective.assetId)
+    : undefined;
 
   const submitGeneric = () => {
     const result = scoreChallenge(challenge, response);
     if (!result) return;
     setGenericResult(result);
-    setLifecycle("complete");
+    setLifecycle(lifecycleAfterScore(result));
   };
 
   const checkEvidenceHunt = () => {
@@ -215,6 +237,12 @@ export default function ChallengeRendererShell({
 
         {!evidenceHunt && choicePayload && response.kind === "choice" && (
           <div className="grid gap-2">
+            {detectiveAsset?.status === "resolved" && detectiveAsset.asset?.image_url && (
+              <figure className="mb-2 border border-neutral-200 bg-white p-2 dark:border-neutral-800">
+                <img src={blobUrl(detectiveAsset.asset.image_url)} alt="Original figure crop with its caption hidden" className="max-h-64 w-full object-contain" />
+                <figcaption className="sr-only">Choose the matching original caption from the source-backed options below.</figcaption>
+              </figure>
+            )}
             {choicePayload.choices.map((choice) => {
               const selected = response.choiceIds.includes(choice.id);
               return (
@@ -281,6 +309,24 @@ export default function ChallengeRendererShell({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {!evidenceHunt && paperCheck && response.kind === "paper-check" && (
+          <div className="grid gap-4">
+            {paperCheck.questions.map((question) => (
+              <fieldset key={question.id} className="border border-neutral-200 p-3 dark:border-neutral-800">
+                <legend className="px-1 text-sm font-medium">{question.category}: {question.prompt}</legend>
+                <div className="mt-2 grid gap-2">
+                  {question.choices.map((choice) => (
+                    <label key={choice.id} className="flex min-h-9 items-center gap-2 border border-neutral-200 px-2 text-sm focus-within:outline-2 focus-within:outline-sky-600 dark:border-neutral-800">
+                      <input type="radio" name={`${challenge.id}-${question.id}`} checked={response.answers[question.id] === choice.id} disabled={lifecycle === "complete"} onChange={() => setResponse({ kind: "paper-check", answers: { ...response.answers, [question.id]: choice.id } })} />
+                      {choice.label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
           </div>
         )}
 
@@ -357,11 +403,23 @@ export default function ChallengeRendererShell({
           </div>
         )}
         {genericResult && (
-          <p aria-live="polite" className="mt-2 text-sm font-medium">
-            {genericResult.correct
-              ? "This response matches the source-grounded relationship."
-              : "This response does not match the source-grounded relationship. Review the evidence and revise."}
-          </p>
+          <div className="mt-2">
+            <p aria-live="polite" className="text-sm font-medium">
+              {genericResult.correct
+                ? "This response matches the source-grounded relationship."
+                : "This response does not match the source-grounded relationship. Review the evidence and revise."}
+            </p>
+            {genericResult.categoryResults && (
+              <ul className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                {Object.entries(genericResult.categoryResults).map(([category, correct]) => <li key={category}>{category}: {correct ? "correct" : "revise"}</li>)}
+              </ul>
+            )}
+            {!genericResult.correct && (
+              <button type="button" onClick={() => { setGenericResult(null); setLifecycle("active"); }} className="mt-3 min-h-9 border border-sky-700 px-3 text-sm text-sky-800 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300">
+                Retry
+              </button>
+            )}
+          </div>
         )}
         <div className="mt-3 grid gap-1">
           {challenge.evidence.map((evidence) => {
@@ -376,13 +434,22 @@ export default function ChallengeRendererShell({
                 <LocateFixed aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
                 <span>
                   <strong className="block">Show evidence · {sourceLabel(evidence, resolver)}</strong>
-                  <span className="line-clamp-2">{resolved?.status === "resolved" ? resolved.excerpt : evidence.source.text ?? evidence.reason}</span>
+                  <span className="line-clamp-2">{resolved?.status === "resolved" ? resolved.excerpt : evidenceExcerpt(evidence)}</span>
                   <span className="block text-neutral-500">{evidence.reason}</span>
                 </span>
               </button>
             );
           })}
         </div>
+        {onPinEvidence && (
+          <div className="mt-2 flex flex-wrap gap-2" aria-label="Pin verified challenge evidence">
+            {challenge.evidence.filter((item) => isSourceEvidence(item.source) && resolver?.resolve(item).status === "resolved").map((item) => (
+              <button key={`pin-${item.id}`} type="button" onClick={() => onPinEvidence(item)} className="flex min-h-8 items-center gap-1 border border-neutral-300 px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">
+                <Pin aria-hidden="true" size={13} /> Pin {sourceLabel(item, resolver)}
+              </button>
+            ))}
+          </div>
+        )}
       </footer>
     </section>
   );

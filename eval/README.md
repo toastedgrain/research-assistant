@@ -16,16 +16,20 @@ cd apps/web && npm run eval:mentions
 `fixtures/papers/` is gitignored, so fetch the PDFs first (be polite to arXiv: identify
 the client and pause between requests), then run the extractor once to populate `data/`.
 
-## Current results
+## Latest reproducible local results
 
 | Metric | Target (spec section 11) | Result |
 |---|---|---|
-| Caption coverage | — | 39/43 (90.7%) over 3 papers |
-| Extraction wall time, 15pp | < 30s | 2.4s worst case — **PASS** |
+| Caption coverage | — | 9/9 (100%) on the available Attention fixture |
+| Extraction wall time, 15pp | < 30s | 1.2s — **PASS** |
 | Mention detection precision | >= 99% | 100% — **PASS**, but on 2 labelled pages only |
 | Mention detection recall | >= 95% | 100% — **PASS**, but on 2 labelled pages only |
 | Figure region IoU > 0.8 | >= 90% of assets | **UNMEASURED** — no bbox labels |
 | Caption attached correctly | >= 95% | **UNMEASURED** |
+
+The earlier three-paper run reported 39/43 caption-openers found, but only the Attention PDF
+is present in `fixtures/papers/` in the current checkout. Do not silently combine historical
+and current fixture sets into one result.
 
 Read the mention numbers with the sample size in mind. Two pages of one paper is a smoke
 test with a percentage attached, not evidence the 99% precision target is met.

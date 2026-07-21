@@ -1,9 +1,17 @@
 import type {
+  ChallengeEvidence,
   ChallengeLifecycle,
   ChallengeReturnRecord,
   ChallengeSpec,
   LearnerResponse,
 } from "./contracts";
+
+export function evidenceForDetails(
+  clicked: ChallengeEvidence | null | undefined,
+  fallback: ChallengeEvidence | null | undefined,
+): ChallengeEvidence | null {
+  return clicked ?? fallback ?? null;
+}
 
 export interface ChallengeSessionState {
   challengeId: string;

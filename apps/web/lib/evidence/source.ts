@@ -98,14 +98,51 @@ export interface SourceEvidence {
 
   text?: string;
   assetId?: string;
+  /** Required for citation identity and structural validation. */
+  refId?: string;
   bbox?: NormalizedBBox;
 
   sectionId?: string;
 }
 
+/** Bibliographic facts do not live on a PDF page and must not pretend that they do. */
+export interface MetadataEvidence {
+  paperId: string;
+  kind: "metadata";
+  field: "publication-date" | "title" | "authors";
+  value: string;
+  label?: string;
+}
+
+export type Evidence = SourceEvidence | MetadataEvidence;
+export type EvidenceKind = Evidence["kind"];
+
+export function canonicalPaperId(paper: Manifest | string): string {
+  const value = typeof paper === "string" ? paper : paper.doc_id;
+  return value.replace(/^sha256:/, "");
+}
+
 /** The digest, which is how every blob path and cache entry is keyed (spec D1). */
 export function paperIdOf(manifest: Manifest): string {
-  return manifest.doc_id.replace(/^sha256:/, "");
+  return canonicalPaperId(manifest);
+}
+
+/**
+ * The only general construction path for source evidence. It canonicalizes paper identity
+ * and passes normalized PDF geometry through untouched.
+ */
+export function createSourceEvidence(
+  paper: Manifest | string,
+  evidence: Omit<SourceEvidence, "paperId">,
+): SourceEvidence {
+  return { ...evidence, paperId: canonicalPaperId(paper) };
+}
+
+export function createMetadataEvidence(
+  paper: Manifest | string,
+  evidence: Omit<MetadataEvidence, "paperId" | "kind">,
+): MetadataEvidence {
+  return { ...evidence, paperId: canonicalPaperId(paper), kind: "metadata" };
 }
 
 export function paperRefOf(manifest: Manifest): PaperRef {
@@ -148,26 +185,24 @@ export function assetRefOf(paperId: string, asset: Asset): AssetRef {
 
 /** Evidence pointing at the asset's own region. */
 export function assetEvidence(paperId: string, asset: Asset): SourceEvidence {
-  return {
-    paperId,
+  return createSourceEvidence(paperId, {
     page: asset.page,
     kind: asset.kind,
     assetId: asset.asset_id,
     bbox: asset.bbox,
     text: asset.caption || undefined,
-  };
+  });
 }
 
 /** Evidence pointing at the caption text, which is a different region from the asset. */
 export function captionEvidence(paperId: string, asset: Asset): SourceEvidence {
-  return {
-    paperId,
+  return createSourceEvidence(paperId, {
     page: asset.page,
     kind: "caption",
     assetId: asset.asset_id,
     bbox: asset.caption_bbox ?? undefined,
     text: asset.caption,
-  };
+  });
 }
 
 export function citationEvidence(
@@ -175,12 +210,12 @@ export function citationEvidence(
   reference: Reference,
   page: number,
 ): SourceEvidence {
-  return {
-    paperId,
+  return createSourceEvidence(paperId, {
     page,
     kind: "citation",
+    refId: reference.ref_id,
     text: reference.title ?? reference.raw,
-  };
+  });
 }
 
 export function passageEvidence(
@@ -189,7 +224,7 @@ export function passageEvidence(
   text: string,
   extra: { bbox?: NormalizedBBox; sectionId?: string } = {},
 ): SourceEvidence {
-  return { paperId, page, kind: "passage", text, ...extra };
+  return createSourceEvidence(paperId, { page, kind: "passage", text, ...extra });
 }
 
 /**
@@ -198,16 +233,55 @@ export function passageEvidence(
  * Includes the paper id because asset ids are only unique within a paper — every paper
  * ever written has a `fig-1`.
  */
-export function evidenceKey(evidence: SourceEvidence): string {
-  return [
-    evidence.paperId,
-    evidence.kind,
-    evidence.page,
-    evidence.assetId ?? "",
-    evidence.bbox?.join(",") ?? "",
-  ].join("|");
+function normalizedIdentityText(text: string | undefined): string {
+  return (text ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase();
 }
 
-export function isSameEvidence(a: SourceEvidence, b: SourceEvidence): boolean {
+function bboxIdentity(bbox: NormalizedBBox | undefined): string {
+  return bbox?.map((value) => Number(value).toString()).join(",") ?? "";
+}
+
+function canonicalEvidenceIdentity(evidence: Evidence): string {
+  const paperId = canonicalPaperId(evidence.paperId);
+  if (evidence.kind === "metadata") {
+    return JSON.stringify([paperId, "metadata", evidence.field, normalizedIdentityText(evidence.value)]);
+  }
+  switch (evidence.kind) {
+    case "passage":
+      return JSON.stringify([paperId, evidence.kind, evidence.page, bboxIdentity(evidence.bbox), normalizedIdentityText(evidence.text), evidence.sectionId ?? ""]);
+    case "citation":
+      return JSON.stringify([paperId, evidence.kind, evidence.page, evidence.refId ?? "", bboxIdentity(evidence.bbox)]);
+    case "caption":
+      return JSON.stringify([paperId, evidence.kind, evidence.assetId ?? "", normalizedIdentityText(evidence.text)]);
+    case "figure":
+    case "table":
+    case "algorithm":
+      return JSON.stringify([paperId, "asset", evidence.assetId ?? ""]);
+    case "equation":
+      return JSON.stringify([paperId, evidence.kind, evidence.page, evidence.assetId ?? "", bboxIdentity(evidence.bbox), normalizedIdentityText(evidence.text)]);
+  }
+}
+
+/** Stable, synchronous paired FNV-1a identity for URLs, persistence, and dedupe. */
+function hashIdentity(value: string): string {
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    first = Math.imul(first ^ code, 0x01000193);
+    second = Math.imul(second ^ (code + index), 0x85ebca6b);
+  }
+  return `${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export function evidenceKey(evidence: Evidence): string {
+  return `evidence-${hashIdentity(canonicalEvidenceIdentity(evidence))}`;
+}
+
+export function isSameEvidence(a: Evidence, b: Evidence): boolean {
   return evidenceKey(a) === evidenceKey(b);
+}
+
+export function isSourceEvidence(evidence: Evidence): evidence is SourceEvidence {
+  return evidence.kind !== "metadata";
 }

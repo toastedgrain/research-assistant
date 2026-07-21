@@ -1,12 +1,13 @@
 "use client";
 
-import { BookOpenText, BrainCircuit, Copy, LocateFixed, Route, Sparkles, X } from "lucide-react";
+import { BookOpenText, BrainCircuit, Copy, LocateFixed, Pin, Route, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { SelectionAnchor } from "../../lib/selection/dom";
 
 interface Props {
   anchor: SelectionAnchor;
   onEvidenceHunt?: () => void;
+  onPin?: () => void;
   onContext: () => void;
   onTrace: () => void;
   onUnderstand?: () => void;
@@ -22,6 +23,7 @@ const actionClass =
 export default function SelectionMenu({
   anchor,
   onEvidenceHunt,
+  onPin,
   onContext,
   onTrace,
   onUnderstand,
@@ -59,15 +61,21 @@ export default function SelectionMenu({
       style={{ left: position.x, top: position.y }}
       onMouseDown={(event) => event.preventDefault()}
     >
+      {onPin && (
+        <button type="button" className={actionClass} onClick={onPin} title="Pin verified selection to Workspace">
+          <Pin aria-hidden="true" size={15} />
+          Pin
+        </button>
+      )}
       {onEvidenceHunt && (
         <button type="button" className={actionClass} onClick={onEvidenceHunt} title="Start an Evidence Hunt">
           <LocateFixed aria-hidden="true" size={15} />
           Evidence Hunt
         </button>
       )}
-      <button type="button" className={actionClass} onClick={onContext} title="Show source context">
+      <button type="button" className={actionClass} onClick={onContext} title="Explain from surrounding source context">
         <BookOpenText aria-hidden="true" size={15} />
-        Context
+        Explain
       </button>
       <button type="button" className={actionClass} onClick={onTrace} title="Trace through paper">
         <Route aria-hidden="true" size={15} />

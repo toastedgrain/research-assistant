@@ -1,5 +1,6 @@
 import type { Citation } from "../citations";
 import type { Asset, Section } from "../manifest";
+import { canonicalPaperId, createSourceEvidence } from "../evidence/source";
 import { flattenPage, rectForRange, type Mention, type PageTextItem } from "../mentions";
 import { buildPagePassages, sectionAtPage } from "../research-context/context";
 import type { AssetRef, NormalizedBBox } from "../research-context/types";
@@ -93,6 +94,7 @@ export function buildConceptThread({
   sections,
   assets,
 }: BuildThreadInput): ConceptThread {
+  const sourcePaperId = canonicalPaperId(paperId);
   const query = normalizedConcept(concept);
   const occurrences: ConceptOccurrence[] = [];
 
@@ -101,7 +103,7 @@ export function buildConceptThread({
       const flat = searchable(page.items);
       const haystack = flat.text.toLocaleLowerCase();
       const needle = query.toLocaleLowerCase();
-      const passages = buildPagePassages(paperId, pageIndex, page.items, sections);
+      const passages = buildPagePassages(sourcePaperId, pageIndex, page.items, sections);
       let from = 0;
 
       while (from <= haystack.length - needle.length) {
@@ -128,21 +130,21 @@ export function buildConceptThread({
               : a.asset_id.localeCompare(b.asset_id),
           )
           .slice(0, 2)
-          .map((asset) => assetRef(paperId, asset));
+          .map((asset) => assetRef(sourcePaperId, asset));
         const occurrenceIndex = occurrences.length;
         occurrences.push({
-          id: `${paperId}:concept-${conceptId(concept)}:${occurrenceIndex}`,
+          id: `${sourcePaperId}:concept-${conceptId(concept)}:${occurrenceIndex}`,
           page: pageIndex,
           passage,
-          evidence: {
-            paperId,
+          evidence: createSourceEvidence(sourcePaperId, {
             page: pageIndex,
             kind: "passage",
             text: passage.text,
             ...(bbox ? { bbox } : {}),
             ...(section ? { sectionId: section.sectionId } : {}),
-          },
+          }),
           nearbyAssets,
+          citationLandmarks: page.citations.map((citation) => citation.text),
         });
       }
     });
@@ -159,9 +161,9 @@ export function buildConceptThread({
 
   const id = conceptId(concept);
   return {
-    id: `${paperId}:thread-${id}`,
-    paperId,
-    concept: { conceptId: id, paperId, label: concept.trim() },
+    id: `${sourcePaperId}:thread-${id}`,
+    paperId: sourcePaperId,
+    concept: { conceptId: id, paperId: sourcePaperId, label: concept.trim() },
     occurrences,
     groups,
   };

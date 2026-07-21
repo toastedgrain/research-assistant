@@ -1,4 +1,4 @@
-import { evidenceKey, type SourceEvidenceKind } from "../evidence/source";
+import { canonicalPaperId, evidenceKey, type EvidenceKind } from "../evidence/source";
 import type { EvidenceResolver } from "../evidence/resource";
 import type {
   ChallengeChoice,
@@ -28,7 +28,6 @@ function choicePayloadChoices(challenge: ChallengeSpec): ChallengeChoice[] | nul
     payload.kind === "figure-detective" ||
     payload.kind === "prediction" ||
     payload.kind === "claim-evidence" ||
-    payload.kind === "paper-check" ||
     payload.kind === "paper-vs-paper"
     ? payload.choices
     : null;
@@ -39,21 +38,23 @@ function orderingPayloadItems(challenge: ChallengeSpec): ChallengeChoice[] | nul
   return payload.kind === "ordering" ||
     payload.kind === "figure-build" ||
     payload.kind === "timeline" ||
-    payload.kind === "evolution"
+    payload.kind === "evolution" ||
+    payload.kind === "prerequisite" ||
+    payload.kind === "thread-expedition"
     ? payload.items
     : null;
 }
 
 function evidenceKindsMatch(
   relationship: GroundedRelationship,
-  kinds: readonly SourceEvidenceKind[],
+  kinds: readonly EvidenceKind[],
 ): boolean {
   return !relationship.requiredEvidenceKinds || relationship.requiredEvidenceKinds.every((kind) => kinds.includes(kind));
 }
 
 function validateRelationships(
   relationships: GroundedRelationship[],
-  evidence: Map<string, { kind: SourceEvidenceKind }>,
+  evidence: Map<string, { kind: EvidenceKind }>,
   requiredIds: string[],
   errors: string[],
 ): void {
@@ -68,7 +69,7 @@ function validateRelationships(
       errors.push(`Relationship ${relationship.id} has no supporting evidence.`);
       continue;
     }
-    const kinds: SourceEvidenceKind[] = [];
+    const kinds: EvidenceKind[] = [];
     for (const evidenceId of relationship.evidenceIds) {
       const item = evidence.get(evidenceId);
       if (!item) errors.push(`Relationship ${relationship.id} references unknown evidence ${evidenceId}.`);
@@ -93,6 +94,15 @@ function validatePayload(challenge: ChallengeSpec, errors: string[]): void {
   if (challenge.payload.kind === "concept-match") {
     if (!choicesAreDistinct(challenge.payload.concepts) || !choicesAreDistinct(challenge.payload.definitions)) {
       errors.push("Match items must be distinct.");
+    }
+  }
+  if (challenge.payload.kind === "paper-check") {
+    const ids = new Set(challenge.payload.questions.map(({ id }) => id));
+    if (challenge.payload.questions.length < 2 || ids.size !== challenge.payload.questions.length) {
+      errors.push("Paper Check requires distinct questions across multiple categories.");
+    }
+    for (const question of challenge.payload.questions) {
+      if (!choicesAreDistinct(question.choices)) errors.push(`Paper Check question ${question.id} requires distinct choices.`);
     }
   }
   if (items && !choicesAreDistinct(items)) {
@@ -163,7 +173,7 @@ function validateAnswer(challenge: Extract<ChallengeSpec, { mode: "scored" }>, e
     }
     for (const evidenceId of challenge.answer.acceptedEvidenceIds) {
       const evidence = evidenceById.get(evidenceId);
-      if (!evidence || !challenge.payload.acceptedEvidenceKinds.includes(evidence.kind)) {
+      if (!evidence || evidence.kind === "metadata" || !challenge.payload.acceptedEvidenceKinds.includes(evidence.kind)) {
         errors.push("Evidence Hunt accepted evidence is incompatible with its target.");
       }
     }
@@ -171,6 +181,20 @@ function validateAnswer(challenge: Extract<ChallengeSpec, { mode: "scored" }>, e
       challenge.answer.relationships,
       evidenceById,
       challenge.answer.acceptedEvidenceIds.map((id) => `accepted:${id}`),
+      errors,
+    );
+    return;
+  }
+  if (challenge.answer.kind === "paper-check" && challenge.payload.kind === "paper-check") {
+    const questions = new Map(challenge.payload.questions.map((question) => [question.id, question]));
+    const answers = Object.entries(challenge.answer.answers);
+    if (answers.length !== questions.size || answers.some(([questionId, choiceId]) => !questions.get(questionId)?.choices.some(({ id }) => id === choiceId))) {
+      errors.push("Paper Check answers must cover every question with an available choice.");
+    }
+    validateRelationships(
+      challenge.answer.relationships,
+      evidenceById,
+      answers.map(([questionId, choiceId]) => `question:${questionId}:${choiceId}`),
       errors,
     );
     return;
@@ -190,6 +214,9 @@ export function validateChallenge(
   const errors: string[] = [];
   const warnings: string[] = [];
   validatePayload(challenge, errors);
+  if (challenge.paperIds.some((paperId) => paperId !== canonicalPaperId(paperId))) {
+    errors.push("Challenge paper ids must use the canonical representation.");
+  }
 
   const evidenceIds = new Set<string>();
   for (const item of challenge.evidence) {
@@ -198,7 +225,7 @@ export function validateChallenge(
     }
     if (evidenceIds.has(item.id)) errors.push("Challenge evidence ids must be distinct.");
     evidenceIds.add(item.id);
-    if (!challenge.paperIds.includes(item.source.paperId)) {
+    if (!challenge.paperIds.includes(canonicalPaperId(item.source.paperId))) {
       errors.push("Challenge evidence belongs to a paper outside the challenge.");
     }
     const resolution = resolver?.resolve(item);

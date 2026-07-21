@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { blobUrl } from "../../lib/api";
+import { sourceEvidenceHref, sourcePageHref } from "../../lib/evidence/navigation";
 import {
   buildAtlasEntries,
   groupByKind,
@@ -9,6 +10,8 @@ import {
   type AtlasEntry,
 } from "../../lib/explore/atlas";
 import type { PaperAnalysis } from "../../lib/explore/analysis";
+import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
+import { pinVerifiedEvidence } from "../../lib/workspace/pinning";
 
 type Grouping = "kind" | "section";
 
@@ -26,6 +29,8 @@ interface Props {
  */
 export default function FigureAtlas({ analysis, digest }: Props) {
   const [grouping, setGrouping] = useState<Grouping>("kind");
+  const [pinStatus, setPinStatus] = useState("");
+  const repository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
 
   const entries = useMemo(
     () => buildAtlasEntries(analysis.manifest, analysis.reverseIndex),
@@ -76,30 +81,28 @@ export default function FigureAtlas({ analysis, digest }: Props) {
           </h2>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">
             {group.entries.map((entry) => (
-              <AtlasCard key={entry.ref.assetId} entry={entry} digest={digest} />
+              <AtlasCard key={entry.ref.assetId} entry={entry} digest={digest} onPin={async () => {
+                const result = await pinVerifiedEvidence(repository, analysis.manifest, entry.evidence);
+                setPinStatus(result.status === "pinned" ? `${entry.label} pinned to Workspace.` : result.reason);
+              }} />
             ))}
           </div>
         </section>
       ))}
+      <p className="sr-only" aria-live="polite">{pinStatus}</p>
     </div>
   );
 }
 
-function AtlasCard({ entry, digest }: { entry: AtlasEntry; digest: string }) {
+function AtlasCard({ entry, digest, onPin }: { entry: AtlasEntry; digest: string; onPin: () => void }) {
   // A crop can also fail at request time, not just be absent from the manifest.
   const [imageFailed, setImageFailed] = useState(false);
   const showImage = entry.cropUrl !== null && !imageFailed;
 
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-900">
-      {/*
-        Links carry #page= so a future reader can honour it, but the labels only promise
-        what works today: opening the paper. Jumping to the page needs a reader-side
-        handler, and §18 asks Developer B not to edit Reader.tsx concurrently, so that
-        lands separately as a slot rather than being claimed here.
-      */}
       <a
-        href={`/read/${digest}#page=${entry.ref.page}`}
+        href={sourceEvidenceHref(entry.evidence)}
         title={`Open the paper (${entry.label} is on page ${entry.ref.page + 1})`}
         className="block"
       >
@@ -126,6 +129,7 @@ function AtlasCard({ entry, digest }: { entry: AtlasEntry; digest: string }) {
         </div>
 
         <p className="line-clamp-3 text-xs leading-snug opacity-75">{entry.caption}</p>
+        <button type="button" onClick={onPin} className="w-fit rounded border border-sky-700 px-2 py-1 text-xs text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950">Pin verified asset</button>
 
         {/*
           Reverse links, the same headline feature the reader card exposes (spec §8):
@@ -138,7 +142,7 @@ function AtlasCard({ entry, digest }: { entry: AtlasEntry; digest: string }) {
             {entry.mentionPages.map((page) => (
               <a
                 key={page}
-                href={`/read/${digest}#page=${page}`}
+                href={sourcePageHref(digest, page)}
                 title={`Open the paper (referenced on page ${page + 1})`}
                 className="rounded bg-neutral-200 px-1.5 py-0.5 font-mono hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700"
               >

@@ -1,4 +1,4 @@
-import { evidenceKey, type SourceEvidence, type SourceEvidenceKind } from "../evidence/source";
+import { evidenceKey, type Evidence, type EvidenceKind, type SourceEvidenceKind } from "../evidence/source";
 
 export type ChallengeType =
   | "multiple-choice"
@@ -10,6 +10,8 @@ export type ChallengeType =
   | "prediction"
   | "claim-evidence"
   | "paper-check"
+  | "prerequisite"
+  | "thread-expedition"
   | "paper-vs-paper"
   | "timeline"
   | "evolution";
@@ -24,7 +26,7 @@ export interface ChallengeChoice {
 
 export type EvidenceResourceRef =
   | { kind: "passage"; resourceId: string }
-  | { kind: "citation"; resourceId: string };
+  | { kind: "citation"; resourceId: string; targetPaperId?: string };
 
 /**
  * A challenge-local name for canonical source evidence. The optional resource reference
@@ -32,13 +34,13 @@ export type EvidenceResourceRef =
  */
 export interface ChallengeEvidence {
   id: string;
-  source: SourceEvidence;
+  source: Evidence;
   reason: string;
   resource?: EvidenceResourceRef;
 }
 
 export function challengeEvidence(
-  source: SourceEvidence,
+  source: Evidence,
   reason: string,
   resource?: EvidenceResourceRef,
 ): ChallengeEvidence {
@@ -49,7 +51,7 @@ export function challengeEvidence(
 export interface GroundedRelationship {
   id: string;
   evidenceIds: string[];
-  requiredEvidenceKinds?: SourceEvidenceKind[];
+  requiredEvidenceKinds?: EvidenceKind[];
   reason: string;
 }
 
@@ -100,8 +102,24 @@ export interface ClaimEvidencePayload {
 
 export interface PaperCheckPayload {
   kind: "paper-check";
-  choices: ChallengeChoice[];
-  category: "terminology" | "method" | "evidence" | "result";
+  questions: Array<{
+    id: string;
+    prompt: string;
+    category: "terminology" | "method" | "evidence" | "result" | "relationships";
+    choices: ChallengeChoice[];
+  }>;
+}
+
+export interface PrerequisitePayload {
+  kind: "prerequisite";
+  items: ChallengeChoice[];
+  rootId: string;
+}
+
+export interface ThreadExpeditionPayload {
+  kind: "thread-expedition";
+  items: ChallengeChoice[];
+  conceptLabel: string;
 }
 
 export interface PaperVsPaperPayload {
@@ -152,6 +170,12 @@ export interface EvidenceHuntAnswer {
   relationships: GroundedRelationship[];
 }
 
+export interface PaperCheckAnswer {
+  kind: "paper-check";
+  answers: Record<string, string>;
+  relationships: GroundedRelationship[];
+}
+
 export type ChallengePayload =
   | MultipleChoicePayload
   | ConceptMatchPayload
@@ -164,19 +188,23 @@ export type ChallengePayload =
   | PaperCheckPayload
   | PaperVsPaperPayload
   | TimelinePayload
-  | EvolutionPayload;
+  | EvolutionPayload
+  | PrerequisitePayload
+  | ThreadExpeditionPayload;
 
 export type ChallengeAnswer =
   | ChoiceAnswer
   | PairAnswer
   | OrderAnswer
-  | EvidenceHuntAnswer;
+  | EvidenceHuntAnswer
+  | PaperCheckAnswer;
 
 export type LearnerResponse =
   | { kind: "choice"; choiceIds: string[] }
   | { kind: "pairs"; pairs: Record<string, string> }
   | { kind: "order"; itemIds: string[] }
-  | { kind: "evidence-hunt"; selectedPassageId?: string };
+  | { kind: "evidence-hunt"; selectedPassageId?: string }
+  | { kind: "paper-check"; answers: Record<string, string> };
 
 export interface ChallengeHint {
   id: string;
@@ -261,8 +289,16 @@ export type ClaimEvidenceChallenge =
   | ExploreChallenge<"claim-evidence", ClaimEvidencePayload>;
 
 export type PaperCheckChallenge =
-  | ScoredChallenge<"paper-check", PaperCheckPayload, ChoiceAnswer>
+  | ScoredChallenge<"paper-check", PaperCheckPayload, PaperCheckAnswer>
   | ExploreChallenge<"paper-check", PaperCheckPayload>;
+
+export type PrerequisiteChallenge =
+  | ScoredChallenge<"prerequisite", PrerequisitePayload, OrderAnswer>
+  | ExploreChallenge<"prerequisite", PrerequisitePayload>;
+
+export type ThreadExpeditionChallenge =
+  | ScoredChallenge<"thread-expedition", ThreadExpeditionPayload, OrderAnswer>
+  | ExploreChallenge<"thread-expedition", ThreadExpeditionPayload>;
 
 export type PaperVsPaperChallenge =
   | ScoredChallenge<"paper-vs-paper", PaperVsPaperPayload, ChoiceAnswer>
@@ -288,7 +324,9 @@ export type ChallengeSpec =
   | PaperCheckChallenge
   | PaperVsPaperChallenge
   | TimelineChallenge
-  | EvolutionChallenge;
+  | EvolutionChallenge
+  | PrerequisiteChallenge
+  | ThreadExpeditionChallenge;
 
 export type ChallengeLifecycle = "idle" | "active" | "submitted" | "revealed" | "complete";
 

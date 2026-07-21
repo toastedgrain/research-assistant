@@ -3,7 +3,19 @@
 import { BrainCircuit, Compass, GitBranch, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ChallengeSpec } from "../../lib/challenges/contracts";
-import { createPaperCheck, createQuestPlan, createQuickQuiz } from "../../lib/challenges/generator";
+import {
+  createClaimEvidence,
+  createConceptMatch,
+  createFigureBuild,
+  createFigureDetective,
+  createOrdering,
+  createPaperCheck,
+  createPrediction,
+  createPrerequisiteChallenge,
+  createQuestPlan,
+  createQuickQuiz,
+  createThreadExpedition,
+} from "../../lib/challenges/generator";
 import type { EvidenceResolver } from "../../lib/evidence/resource";
 import { buildDifficultyRegions } from "../../lib/learning/difficulty";
 import { buildLearningObjects } from "../../lib/learning/objects";
@@ -11,6 +23,7 @@ import { buildPrerequisiteGraph } from "../../lib/learning/prerequisites";
 import { createMiniDiagram } from "../../lib/learning/visualize";
 import type { PaperLearningIndex } from "../../lib/learning/paper-index";
 import type { ResearchContext } from "../../lib/research-context/types";
+import type { LearningProgress } from "../../lib/progress/types";
 
 type Mode = "read" | "learn" | "quest";
 type UnderstandView = "parts" | "prerequisites" | "visualize" | null;
@@ -21,6 +34,7 @@ interface Props {
   resolver: EvidenceResolver | null;
   context: ResearchContext | null;
   completedChallengeIds: ReadonlySet<string>;
+  progress?: LearningProgress | null;
   onStartChallenge: (challenge: ChallengeSpec) => void;
   onTrace: () => void;
   requestedAction?: LearningModeRequest;
@@ -49,6 +63,7 @@ export default function LearningModes({
   resolver: _resolver,
   context,
   completedChallengeIds,
+  progress,
   onStartChallenge,
   onTrace,
   requestedAction,
@@ -67,6 +82,17 @@ export default function LearningModes({
   const diagram = useMemo(() => concept ? createMiniDiagram(concept, objects) : null, [concept, objects]);
   const quickQuiz = useMemo(() => (index ? createQuickQuiz(index, objects) : null), [index, objects]);
   const paperCheck = useMemo(() => (index ? createPaperCheck(index, objects) : null), [index, objects]);
+  const activities = useMemo<Array<{ label: string; challenge: ChallengeSpec | null; unavailable: string }>>(() => index ? [
+    { label: "Quick Quiz", challenge: createQuickQuiz(index, objects), unavailable: "No distinct literal choices were found." },
+    { label: "Concept Match", challenge: createConceptMatch(index, objects), unavailable: "Fewer than two explicit definitions were found." },
+    { label: "Ordering", challenge: createOrdering(index), unavailable: "The section order could not be anchored to source passages." },
+    { label: "Figure Build", challenge: createFigureBuild(index, objects), unavailable: "No controlled source diagram was available; image topology was not guessed." },
+    { label: "Figure Detective", challenge: createFigureDetective(index), unavailable: "No original figure with enough source-caption choices was found." },
+    { label: "Prediction", challenge: createPrediction(index, objects), unavailable: "A reliable method/result boundary was not detected." },
+    { label: "Claim vs Evidence", challenge: createClaimEvidence(index, objects), unavailable: "No claim literally naming an extracted asset was found." },
+    { label: "Prerequisite Challenge", challenge: createPrerequisiteChallenge(index, objects), unavailable: "No literal in-paper prerequisite relation was found." },
+    { label: "Thread Expedition", challenge: createThreadExpedition(index, objects), unavailable: "No defined concept had multiple exact occurrences." },
+  ] : [], [index, objects]);
 
   useEffect(() => {
     if (!requestedAction) return;
@@ -127,6 +153,7 @@ export default function LearningModes({
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold">Learn mode</h2>
             <p className="mt-1 text-xs leading-5 text-neutral-600 dark:text-neutral-300">Optional source-led support; it never interrupts scrolling.</p>
+            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{Object.values(progress?.conceptMastery ?? {}).filter((state) => state === "mastered").length} concepts mastered</p>
           </div>
           <button type="button" className="h-8 w-8 focus-visible:outline-2 focus-visible:outline-sky-600" onClick={() => setMode("read")} aria-label="Close Learn mode"><X aria-hidden="true" size={16} /></button>
         </header>
@@ -179,6 +206,25 @@ export default function LearningModes({
             </div>
           )}
         </section>
+
+        <section className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800" aria-labelledby="learning-activities-heading">
+          <h3 id="learning-activities-heading" className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Source-grounded activities</h3>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {activities.map((activity) => (
+              <button
+                key={activity.label}
+                type="button"
+                disabled={!activity.challenge}
+                title={activity.challenge ? `Open ${activity.label}` : activity.unavailable}
+                onClick={() => start(activity.challenge)}
+                className="min-h-9 border border-neutral-300 px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-900"
+              >
+                {activity.label}{!activity.challenge && <span className="sr-only"> unavailable: {activity.unavailable}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-neutral-500">Unavailable activities fail closed when their scored relationship cannot be proven from this paper.</p>
+        </section>
       </section>
 
       <section hidden={mode !== "quest"} className="mt-2 max-h-[min(550px,calc(100vh-88px))] overflow-y-auto rounded-md border border-neutral-300 bg-white p-4 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
@@ -189,16 +235,15 @@ export default function LearningModes({
         </header>
         <section className="mt-4" aria-label="Section checkpoints">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Section checkpoints</h3>
-          <p className="mt-1 text-xs text-neutral-500">{completedChallengeIds.size} completed this session. Progress reflects source-backed interactions, not time spent.</p>
+          <p className="mt-1 text-xs text-neutral-500">{completedChallengeIds.size} completed and persisted. Progress reflects source-backed interactions, not time spent.</p>
           <p className="mt-1 text-xs text-neutral-500">Relative density: {regions.map((region) => dots(region.difficulty)).join(" · ")}</p>
           <div className="mt-2 grid gap-2">
             {quest?.checkpoints.map((checkpoint) => {
-              const challenge = checkpoint.challenges[0];
-              const complete = challenge && completedChallengeIds.has(challenge.id);
+              const complete = checkpoint.challenges.length > 0 && checkpoint.challenges.every((challenge) => completedChallengeIds.has(challenge.id));
               return (
                 <div key={checkpoint.id} className="border border-neutral-200 p-2 dark:border-neutral-800">
-                  <div className="flex gap-2"><GitBranch aria-hidden="true" className="mt-0.5 shrink-0" size={14} /><p className="min-w-0 flex-1 text-xs font-medium">{checkpoint.label}</p>{complete && <span className="text-xs text-emerald-700 dark:text-emerald-300">completed</span>}</div>
-                  {challenge ? <button type="button" onClick={() => start(challenge)} className="mt-2 min-h-8 border border-sky-700 px-2 text-xs text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950">Open {challenge.type.replaceAll("-", " ")}</button> : <p className="mt-2 text-xs text-neutral-500">No high-confidence checkpoint here.</p>}
+                  <div className="flex gap-2"><GitBranch aria-hidden="true" className="mt-0.5 shrink-0" size={14} /><p className="min-w-0 flex-1 text-xs font-medium">{checkpoint.label}</p>{progress?.currentSectionId === checkpoint.sectionId && !complete ? <span className="text-xs text-sky-700 dark:text-sky-300">current</span> : null}{complete && <span className="text-xs text-emerald-700 dark:text-emerald-300">completed</span>}</div>
+                  {checkpoint.challenges.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{checkpoint.challenges.map((challenge) => <button key={challenge.id} type="button" onClick={() => start(challenge)} className="min-h-8 border border-sky-700 px-2 text-xs text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950">Open {challenge.type.replaceAll("-", " ")}{completedChallengeIds.has(challenge.id) ? " ✓" : ""}</button>)}</div> : <p className="mt-2 text-xs text-neutral-500">No high-confidence checkpoint here.</p>}
                 </div>
               );
             })}

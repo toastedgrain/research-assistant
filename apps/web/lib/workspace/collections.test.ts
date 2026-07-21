@@ -5,6 +5,8 @@ import {
   addPaperToCollection,
   createCollection,
   partitionCollectionPapers,
+  normalizeCollection,
+  removePaperFromCollection,
   renameCollection,
 } from "./collections";
 
@@ -49,6 +51,14 @@ describe("collection mutations", () => {
     expect(after.updatedAt).toBe(200);
   });
 
+  it("removes a paper without deleting retained notes or evidence", () => {
+    const before = { ...addPaperToCollection(createCollection("Vision", { id: "collection-1", now: 100 }), paper("a"), 150), pinnedEvidence: [{ paperId: "a", page: 0, kind: "passage" as const, text: "source" }] };
+    const after = removePaperFromCollection(before, "a", 200);
+    expect(after.papers).toEqual([]);
+    expect(after.pinnedEvidence).toEqual(before.pinnedEvidence);
+    expect(after.updatedAt).toBe(200);
+  });
+
   it("attaches notes to source evidence", () => {
     const source: SourceEvidence = {
       paperId: "a",
@@ -78,5 +88,19 @@ describe("collection mutations", () => {
       missing: [paper("deleted")],
     });
     expect(collection.papers).toHaveLength(2);
+  });
+
+  it("migrates every persisted paper and evidence pointer to canonical ids", () => {
+    const source = { paperId: "sha256:a", page: 0, kind: "passage" as const, text: "source" };
+    const normalized = normalizeCollection({
+      ...createCollection("Legacy", { id: "legacy", now: 1 }),
+      papers: [{ paperId: "sha256:a", title: "A", arxivId: null }],
+      pinnedEvidence: [source],
+      notes: [{ id: "note", text: "note", source, createdAt: 1 }],
+      comparisons: [{ id: "compare", evidence: [source], createdAt: 1 }],
+      boardNodes: [{ id: "node", source, x: 0, y: 0 }],
+    });
+    expect(normalized.papers[0].paperId).toBe("a");
+    expect([normalized.pinnedEvidence[0], normalized.notes[0].source, normalized.comparisons[0].evidence[0], normalized.boardNodes[0].source].every((item) => item?.paperId === "a")).toBe(true);
   });
 });

@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { blobUrl, loadManifest } from "../../lib/api";
+import { sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { validateSourceEvidence } from "../../lib/evidence/resource";
 import { evidenceKey, type SourceEvidence } from "../../lib/evidence/source";
 import type { Manifest } from "../../lib/manifest";
 import { saveComparison } from "../../lib/workspace/board";
@@ -31,7 +33,9 @@ export default function EvidenceComparison({ collectionId }: { collectionId: str
   }, [collectionId, repository]);
 
   if (!collection) return <main className="p-8">{error ? <p role="alert" className="text-red-700">{error}</p> : <p className="opacity-60">Loading comparison…</p>}</main>;
-  const candidates = evidenceCandidates(collection);
+  const allCandidates = evidenceCandidates(collection);
+  const candidates = allCandidates.filter((item) => validateSourceEvidence(item, manifests.get(item.paperId) ?? null).status === "resolved");
+  const unavailableCount = allCandidates.length - candidates.length;
   const chosen = candidates.filter((item) => selected.has(evidenceKey(item)));
 
   const save = async () => {
@@ -47,7 +51,8 @@ export default function EvidenceComparison({ collectionId }: { collectionId: str
         <h3 className="font-medium">{evidenceLabel(item, manifest)}</h3>
         {asset?.image_url ? <Image unoptimized src={blobUrl(asset.image_url)} alt={asset.caption || asset.label} width={asset.image_width || 800} height={Math.max(240, Math.round((asset.image_width || 800) * 0.62))} className="mt-3 h-auto w-full rounded border bg-white object-contain" /> : null}
         <p className="mt-3 text-sm leading-relaxed opacity-75">{item.text || asset?.caption || "Source pointer; open the paper for the original content."}</p>
-        {manifest ? <a href={`/read/${item.paperId}#page=${item.page}`} className="mt-3 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Show source, page {item.page + 1} →</a> : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Source unavailable locally</p>}
+        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Verified original evidence</p>
+        {manifest ? <a href={sourceEvidenceHref(item)} className="mt-3 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Show exact source, page {item.page + 1} →</a> : <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Source unavailable locally</p>}
       </article>
     );
   };
@@ -61,7 +66,8 @@ export default function EvidenceComparison({ collectionId }: { collectionId: str
           <p className="mt-1 text-sm opacity-60">Select original evidence. Marginalia does not generate a verdict or normalize metrics.</p>
         </header>
         {error ? <p role="alert" className="mt-4 text-red-700 dark:text-red-300">{error}</p> : null}
-        {candidates.length === 0 ? <p className="mt-8 rounded border border-dashed p-8 text-center opacity-60">Add source-linked cards or notes before comparing.</p> : (
+        {unavailableCount > 0 ? <p className="mt-4 text-sm text-amber-700 dark:text-amber-300">{unavailableCount} unavailable or invalid source pointer{unavailableCount === 1 ? " was" : "s were"} excluded from comparison.</p> : null}
+        {candidates.length === 0 ? <p className="mt-8 rounded border border-dashed p-8 text-center opacity-60">Pin at least two verified source cards before comparing.</p> : (
           <>
             <fieldset className="mt-6 grid gap-2 rounded-lg border border-neutral-300 bg-white p-4 sm:grid-cols-2 dark:border-neutral-800 dark:bg-neutral-900">
               <legend className="px-2 text-sm font-medium">Evidence to compare</legend>

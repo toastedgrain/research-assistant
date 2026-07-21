@@ -14,6 +14,7 @@ interface Props {
   query: string;
   resolver?: EvidenceResolver;
   onNavigateEvidence?: (evidence: ChallengeEvidence) => void;
+  onPinEvidence?: (evidence: ChallengeEvidence) => void;
 }
 
 /** Dev A game UI; it consumes Dev B's provider but never imports an exploration surface. */
@@ -24,6 +25,7 @@ export default function CrossPaperQuest({
   query,
   resolver,
   onNavigateEvidence = () => undefined,
+  onPinEvidence,
 }: Props) {
   const challenge = useMemo(
     () => createPaperVsPaperChallenge(provider, paperAId, paperBId, query),
@@ -32,5 +34,5 @@ export default function CrossPaperQuest({
   if (!resolver || !challenge) {
     return <p className="text-sm text-neutral-500">This comparison requires both loaded papers and direct, resolvable source evidence.</p>;
   }
-  return <ChallengeRendererShell challenge={challenge} resolver={resolver} onNavigateEvidence={onNavigateEvidence} />;
+  return <ChallengeRendererShell challenge={challenge} resolver={resolver} onNavigateEvidence={onNavigateEvidence} onPinEvidence={onPinEvidence} />;
 }

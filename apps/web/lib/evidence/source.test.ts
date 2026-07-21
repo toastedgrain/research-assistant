@@ -13,6 +13,7 @@ import {
   assetEvidence,
   captionEvidence,
   citationEvidence,
+  createSourceEvidence,
   evidenceKey,
   paperRefOf,
   passageEvidence,
@@ -103,6 +104,12 @@ describe("section identity", () => {
 });
 
 describe("evidence constructors", () => {
+  it("canonicalizes sha-prefixed paper ids through the shared constructor", () => {
+    expect(createSourceEvidence(MANIFEST, { page: 0, kind: "passage", text: "literal" }).paperId)
+      .toBe("a".repeat(64));
+    expect(createSourceEvidence(MANIFEST.doc_id, { page: 0, kind: "passage", text: "literal" }).paperId)
+      .toBe("a".repeat(64));
+  });
   it("reuses the asset's bbox rather than recomputing one", () => {
     // §1.2: no feature may apply a second coordinate conversion.
     const evidence = assetEvidence("paper-1", FIGURE);
@@ -135,6 +142,7 @@ describe("evidence constructors", () => {
     expect(evidence.kind).toBe("citation");
     expect(evidence.page).toBe(9);
     expect(evidence.text).toContain("Attention is all you need");
+    expect(evidence.refId).toBe("ref-12");
   });
 
   it("builds passage evidence carrying the text needed to show it", () => {
@@ -171,6 +179,20 @@ describe("evidenceKey", () => {
   it("separates two passages on different pages", () => {
     expect(evidenceKey(passageEvidence("p", 1, "text"))).not.toBe(
       evidenceKey(passageEvidence("p", 2, "text")),
+    );
+  });
+
+  it("separates passages on the same page by normalized text or bbox", () => {
+    const first = passageEvidence("p", 1, "first passage", { bbox: [0.1, 0.1, 0.8, 0.2] });
+    const second = passageEvidence("p", 1, "second passage", { bbox: [0.1, 0.1, 0.8, 0.2] });
+    const third = passageEvidence("p", 1, "first passage", { bbox: [0.1, 0.3, 0.8, 0.4] });
+    expect(new Set([evidenceKey(first), evidenceKey(second), evidenceKey(third)]).size).toBe(3);
+  });
+
+  it("separates citation markers on one page by reference id", () => {
+    const other = { ...REFERENCE, ref_id: "ref-13", marker: "13" };
+    expect(evidenceKey(citationEvidence("p", REFERENCE, 2))).not.toBe(
+      evidenceKey(citationEvidence("p", other, 2)),
     );
   });
 });

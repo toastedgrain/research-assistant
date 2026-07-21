@@ -35,8 +35,8 @@ describe("reading accessibility settings", () => {
       status: "ready",
       blocks: [
         { type: "heading", title: "1 Method", level: 2, page: 0, sectionId: "sec-0" },
-        { type: "paragraph", text: "Original first paragraph.", page: 0, assetIds: [], citations: [] },
-        { type: "paragraph", text: "Original second paragraph.", page: 1, assetIds: [], citations: [] },
+        { type: "paragraph", text: "Original first paragraph.", page: 0, bbox: [0.1, 0.1, 0.9, 0.2], assetIds: [], citations: [] },
+        { type: "paragraph", text: "Original second paragraph.", page: 1, bbox: [0.1, 0.2, 0.9, 0.3], assetIds: [], citations: [] },
       ],
     };
     expect(speechParagraphs(document)).toEqual([

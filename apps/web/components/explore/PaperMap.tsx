@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { digestOf, fetchArxiv } from "../../lib/api";
+import { paperHref, sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { assetEvidence, createSourceEvidence } from "../../lib/evidence/source";
 import type { PaperAnalysis } from "../../lib/explore/analysis";
 import {
   buildPaperMap,
@@ -11,6 +13,8 @@ import {
   type PaperMapSection,
 } from "../../lib/explore/paper-map";
 import type { Reference } from "../../lib/manifest";
+import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
+import { pinVerifiedEvidence } from "../../lib/workspace/pinning";
 
 interface Props {
   analysis: PaperAnalysis;
@@ -22,6 +26,7 @@ interface SectionNodeProps {
   digest: string;
   openingRefId: string | null;
   onOpenReference: (reference: Reference) => void;
+  onPinAsset: (assetId: string) => void;
 }
 
 /** Structural view of one paper, built only from source-grounded browser analysis (§B2). */
@@ -29,6 +34,8 @@ export default function PaperMap({ analysis, digest }: Props) {
   const router = useRouter();
   const [openingRefId, setOpeningRefId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pinStatus, setPinStatus] = useState("");
+  const repository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
   const model = useMemo(
     () => buildPaperMap(analysis.manifest, analysis.mentionsByPage, analysis.citationsByPage),
     [analysis],
@@ -42,11 +49,18 @@ export default function PaperMap({ analysis, digest }: Props) {
     setError(null);
     try {
       const citedPaper = await fetchArxiv(arxivId);
-      router.push(`/read/${digestOf(citedPaper)}`);
+      router.push(paperHref(digestOf(citedPaper)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setOpeningRefId(null);
     }
+  };
+
+  const pinAsset = async (assetId: string) => {
+    const asset = analysis.manifest.assets.find(({ asset_id }) => asset_id === assetId);
+    if (!asset) return;
+    const result = await pinVerifiedEvidence(repository, analysis.manifest, assetEvidence(analysis.manifest.doc_id, asset));
+    setPinStatus(result.status === "pinned" ? `${asset.label} pinned to Workspace.` : result.reason);
   };
 
   if (model.sections.length === 0) {
@@ -94,9 +108,11 @@ export default function PaperMap({ analysis, digest }: Props) {
             digest={digest}
             openingRefId={openingRefId}
             onOpenReference={openReference}
+            onPinAsset={(assetId) => void pinAsset(assetId)}
           />
         ))}
       </ol>
+      <p className="sr-only" aria-live="polite">{pinStatus}</p>
     </section>
   );
 }
@@ -106,6 +122,7 @@ function SectionNode({
   digest,
   openingRefId,
   onOpenReference,
+  onPinAsset,
 }: SectionNodeProps) {
   const headingLevel = Math.min(6, Math.max(3, section.level + 2));
   const sourceCount = section.assets.length + section.citations.length;
@@ -143,7 +160,7 @@ function SectionNode({
         <div className="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
           {section.page !== null ? (
             <a
-              href={`/read/${digest}#page=${section.page}`}
+              href={sourceEvidenceHref(createSourceEvidence(digest, { page: section.page, kind: "passage", text: section.title }))}
               className="mb-3 inline-block text-xs text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
               title={`Open the paper (${section.title} starts on page ${section.page + 1})`}
             >
@@ -164,12 +181,13 @@ function SectionNode({
                 {section.assets.map(({ asset, mentionPages }) => (
                   <li key={asset.asset_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                     <a
-                      href={`/read/${digest}#page=${asset.page}`}
+                      href={sourceEvidenceHref(assetEvidence(digest, asset))}
                       className="font-medium text-sky-800 underline-offset-2 hover:underline dark:text-sky-300"
                       title={`Open the paper (${asset.label} is on page ${asset.page + 1})`}
                     >
                       {asset.label}
                     </a>
+                    <button type="button" onClick={() => onPinAsset(asset.asset_id)} className="rounded border border-sky-700 px-2 py-1 text-xs text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950">Pin</button>
                     <span className="font-mono text-[0.68rem] uppercase opacity-45">{asset.kind} · p.{asset.page + 1}</span>
                     {mentionPages.length > 0 ? (
                       <span className="text-xs opacity-55">
@@ -209,6 +227,7 @@ function SectionNode({
                   digest={digest}
                   openingRefId={openingRefId}
                   onOpenReference={onOpenReference}
+                  onPinAsset={onPinAsset}
                 />
               ))}
             </ol>

@@ -1,8 +1,9 @@
 # Developer B handoff — Exploration, Workspace & Accessibility
 
-**Status:** All Developer B expansion requirements complete and verified.
-**Last completed branch:** `explore/author-method-networks` — literal network completion.
-**Working tree:** clean, `main` in sync with `origin/main`, no servers running.
+**Status:** Production integration is implemented and automated gates pass; the full visual
+and interactive acceptance walkthrough is not verified in the current environment.
+**Current audit:** `STAGE_6_INTEGRATION_ACCEPTANCE.md` supersedes older blanket completion
+claims in this historical handoff.
 
 This document hands off the Developer B track to whoever picks it up next. It assumes you
 have not seen this repo before.
@@ -407,22 +408,19 @@ is currently unmeasured.
 
 ---
 
-## 11. Known issues found but deliberately not fixed
+## 11. Stage 6 disposition of previously known issues
 
-- **Some table crops are truncated.** The Figure Atlas made this visible at a glance:
-  in *Attention Is All You Need*, the Table 2 and Table 3 crops show only the first row or
-  two rather than the full table. This is an **extraction-quality** issue in
-  `apps/api/extract/figures.py`, not an atlas bug. It was left alone on purpose: extraction
-  is core/shared rather than Developer B's lane, §24 forbids refactoring working extraction
-  without tests and eval evidence, and there are still no hand-labelled bounding boxes to
-  prove a change helps. Worth raising with whoever owns extraction.
+- **Attention Table 2/3 truncation is fixed.** The caption-anchored pipeline now grows a
+  conservative edge-aligned row cluster from a verified tabular core. A regression uses raw
+  geometry from the real paper, and the regenerated crops include the wordy rows without the
+  following paragraph. Global body-text barriers and coordinate conversion were not changed.
 - **Figure-region IoU remains UNMEASURED** across the whole project — no hand-labelled
   boxes exist, and `eval/figures.py` reports it honestly rather than inventing a number.
   Mention precision/recall are measured on two labelled pages of one paper only. See
   `eval/README.md`.
-- **Reader clutter.** Separately from the expansion, the reader's overlay cards accumulate:
-  auto-dock fires on every page change and picks the first mention on the page regardless of
-  where you are reading (`Reader.tsx`, the auto-dock effect), and pinned cards cascade from
-  a fixed origin with no cap, so they march across the page and cover the outline. This was
-  raised by the user and is unresolved. It sits in the reader, so it needs coordination
-  before anyone edits it.
+- **Reader card accumulation is bounded.** The reader keeps at most three overlay cards and
+  clamps responsive positions. Browser acceptance is still required to tune the visual
+  behavior at narrow widths.
+- **Visual/browser acceptance remains blocked.** The in-app controller had no available
+  browser. Source inspection, tests, HTTP checks, and the build passed, but do not establish
+  focus order, drag feel, crop appearance, or the complete 1–77 walkthrough.

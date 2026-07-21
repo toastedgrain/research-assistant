@@ -1,12 +1,17 @@
 "use client";
 
 import { ArrowLeft, LocateFixed, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChallengeEvidence, ChallengeReturnRecord, ChallengeSpec } from "../../lib/challenges/contracts";
 import { createEvidenceHunt } from "../../lib/challenges/evidence-hunt";
-import { createChallengeReturnRecord } from "../../lib/challenges/session";
+import { createChallengeReturnRecord, evidenceForDetails } from "../../lib/challenges/session";
 import type { EvidenceResolver } from "../../lib/evidence/resource";
+import { isSourceEvidence } from "../../lib/evidence/source";
 import type { PaperLearningIndex } from "../../lib/learning/paper-index";
+import { buildLearningObjects } from "../../lib/learning/objects";
+import { createQuestPlan } from "../../lib/challenges/generator";
+import { IndexedDbProgressRepository } from "../../lib/progress/indexed-db";
+import { completeChallenge, emptyProgress, type LearningProgress } from "../../lib/progress/types";
 import type { ResearchContext, SelectionContext } from "../../lib/research-context/types";
 import type { CapturedSelection } from "../../lib/selection/dom";
 import ChallengeRendererShell from "../games/ChallengeRendererShell";
@@ -21,20 +26,23 @@ interface Props {
   onSelectionMenuOpenChange: (open: boolean) => void;
   onOpenContext: () => void;
   onOpenTrace: () => void;
+  onPin: () => void;
   onCopy: () => void;
   onNavigateEvidence: (evidence: ChallengeEvidence) => void;
+  onPinEvidence: (evidence: ChallengeEvidence) => void;
   onFocusPaper: () => void;
   onRestorePaperPage: (page: number) => void;
 }
 
 function evidenceDescription(evidence: ChallengeEvidence, resolver: EvidenceResolver | null): string {
   const resolved = resolver?.resolve(evidence);
+  const location = isSourceEvidence(evidence.source) ? `page ${evidence.source.page + 1}` : "paper metadata";
   if (resolved?.status === "resolved") {
-    return [resolved.label, `page ${evidence.source.page + 1}`, resolved.section?.title, resolved.excerpt]
+    return [resolved.label, location, resolved.section?.title, resolved.excerpt]
       .filter(Boolean)
       .join(" Â· ");
   }
-  return `${evidence.source.kind} Â· page ${evidence.source.page + 1}`;
+  return `${evidence.source.kind} Â· ${location}`;
 }
 
 /**
@@ -49,8 +57,10 @@ export default function ReaderLearningLayer({
   onSelectionMenuOpenChange,
   onOpenContext,
   onOpenTrace,
+  onPin,
   onCopy,
   onNavigateEvidence,
+  onPinEvidence,
   onFocusPaper,
   onRestorePaperPage,
 }: Props) {
@@ -59,9 +69,39 @@ export default function ReaderLearningLayer({
   const [returnRecord, setReturnRecord] = useState<ChallengeReturnRecord | undefined>();
   const [view, setView] = useState<"challenge" | "evidence">("challenge");
   const [returnPage, setReturnPage] = useState<number | undefined>();
-  const [completedChallengeIds, setCompletedChallengeIds] = useState<Set<string>>(() => new Set());
+  const [clickedEvidence, setClickedEvidence] = useState<ChallengeEvidence | null>(null);
+  const [progress, setProgress] = useState<LearningProgress | null>(null);
   const [learningRequest, setLearningRequest] = useState<LearningModeRequest | undefined>();
   const ignoredSelection = useRef<SelectionContext | undefined>(undefined);
+  const progressRepository = useMemo(() => new IndexedDbProgressRepository(), []);
+  const questPlan = useMemo(() => index ? createQuestPlan(index, buildLearningObjects(index)) : null, [index]);
+  const completedChallengeIds = useMemo(() => new Set(progress?.completedChallengeIds ?? []), [progress]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!index) { setProgress(null); return; }
+    progressRepository.getProgress(index.paperId).then((stored) => {
+      if (!cancelled) setProgress(stored ?? emptyProgress(index.paperId));
+    });
+    return () => { cancelled = true; };
+  }, [index, progressRepository]);
+
+  const recordCompletion = useCallback((record: ChallengeReturnRecord) => {
+    if (record.lifecycle !== "complete" || !challenge || !index) return;
+    const sectionId = questPlan?.checkpoints.find((checkpoint) => checkpoint.challenges.some(({ id }) => id === challenge.id))?.sectionId;
+    setProgress((current) => {
+      const base = current ?? emptyProgress(index.paperId);
+      if (base.completedChallengeIds.includes(record.challengeId)) return base;
+      const next = completeChallenge(base, challenge, sectionId);
+      void progressRepository.saveProgress(next);
+      return next;
+    });
+  }, [challenge, index, progressRepository, questPlan]);
+
+  const handleChallengeStateChange = useCallback((record: ChallengeReturnRecord) => {
+    setReturnRecord(record);
+    recordCompletion(record);
+  }, [recordCompletion]);
 
   useEffect(() => {
     const next = selection?.context;
@@ -78,6 +118,7 @@ export default function ReaderLearningLayer({
     setHuntSelection(undefined);
     setReturnRecord(undefined);
     setView("challenge");
+    setClickedEvidence(null);
     onSelectionMenuOpenChange(false);
   };
 
@@ -86,12 +127,14 @@ export default function ReaderLearningLayer({
     setHuntSelection(undefined);
     setReturnRecord(undefined);
     setView("challenge");
+    setClickedEvidence(null);
   };
 
   const closeChallenge = () => {
     setChallenge(null);
     setView("challenge");
     setReturnRecord(undefined);
+    setClickedEvidence(null);
     onFocusPaper();
   };
 
@@ -116,6 +159,7 @@ export default function ReaderLearningLayer({
     if (challenge && returnRecord) setReturnRecord(createChallengeReturnRecord(returnRecord));
     setReturnPage(huntSelection?.page ?? selection?.context.page);
     setView("evidence");
+    setClickedEvidence(evidence);
     onNavigateEvidence(evidence);
   };
 
@@ -128,17 +172,19 @@ export default function ReaderLearningLayer({
     });
   };
 
-  const activeEvidence = challenge?.mode === "scored" && challenge.answer.kind === "evidence-hunt"
+  const defaultEvidence = challenge?.mode === "scored" && challenge.answer.kind === "evidence-hunt"
     ? challenge.answer.acceptedEvidenceIds
       .map((id) => challenge.evidence.find((item) => item.id === id))
       .find((item): item is ChallengeEvidence => Boolean(item))
     : challenge?.evidence[0];
+  const activeEvidence = evidenceForDetails(clickedEvidence, defaultEvidence);
 
   return (
     <>
       {selection?.menuOpen && (
         <SelectionMenu
           anchor={selection.anchor}
+          onPin={context?.sourceWindow.selected ? onPin : undefined}
           onEvidenceHunt={context && index ? startEvidenceHunt : undefined}
           onContext={onOpenContext}
           onTrace={onOpenTrace}
@@ -178,12 +224,8 @@ export default function ReaderLearningLayer({
             initialReturnRecord={returnRecord}
             onFocusPaper={onFocusPaper}
             onNavigateEvidence={showEvidence}
-            onChallengeStateChange={(record) => {
-              setReturnRecord(record);
-              if (record.lifecycle === "complete") {
-                setCompletedChallengeIds((previous) => new Set([...previous, record.challengeId]));
-              }
-            }}
+            onPinEvidence={onPinEvidence}
+            onChallengeStateChange={handleChallengeStateChange}
           />
         </aside>
       )}
@@ -213,6 +255,7 @@ export default function ReaderLearningLayer({
         resolver={resolver}
         context={context}
         completedChallengeIds={completedChallengeIds}
+        progress={progress}
         onStartChallenge={startChallenge}
         onTrace={onOpenTrace}
         requestedAction={learningRequest}

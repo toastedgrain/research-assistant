@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { blobUrl } from "../../lib/api";
+import { paperHref, sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { assetEvidence } from "../../lib/evidence/source";
 import { addPaperToCitationGraph, emptyCitationGraph } from "../../lib/explore/citation-graph";
 import { buildAuthorMethodNetwork } from "../../lib/explore/author-method-network";
 import { browseBenchmarks, buildCollectionIndex, searchCollection, type CollectionIndexEntry } from "../../lib/explore/collection-index";
@@ -10,8 +12,9 @@ import { loadPaperAnalysis, type PaperAnalysis } from "../../lib/explore/analysi
 import { buildConstellation, buildFigureTimeline, buildLineage, buildPaperTimeline } from "../../lib/explore/research-views";
 import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
 import type { ResearchCollection } from "../../lib/workspace/types";
+import CollectionLearning from "./CollectionLearning";
 
-type ResearchTab = "search" | "benchmarks" | "lineage" | "timeline" | "constellation" | "networks";
+type ResearchTab = "search" | "benchmarks" | "lineage" | "timeline" | "constellation" | "networks" | "learn";
 const TABS: Array<{ id: ResearchTab; label: string }> = [
   { id: "search", label: "Search" },
   { id: "benchmarks", label: "Benchmarks" },
@@ -19,6 +22,7 @@ const TABS: Array<{ id: ResearchTab; label: string }> = [
   { id: "timeline", label: "Timeline" },
   { id: "constellation", label: "Constellation" },
   { id: "networks", label: "Authors & Methods" },
+  { id: "learn", label: "Cross-paper Learn" },
 ];
 
 function SourceResults({ results }: { results: CollectionIndexEntry[] }) {
@@ -32,7 +36,7 @@ function SourceResults({ results }: { results: CollectionIndexEntry[] }) {
             <span className="font-mono text-[0.65rem] uppercase opacity-50">{result.field} · {result.paper.title}</span>
           </div>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed opacity-70">{result.text}</p>
-          <a href={`/read/${result.paper.paperId}#page=${result.evidence.page}`} className="mt-2 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Show source, page {result.evidence.page + 1} →</a>
+          <a href={sourceEvidenceHref(result.evidence)} className="mt-2 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Show source, page {result.evidence.page + 1} →</a>
         </li>
       ))}
     </ul>
@@ -115,7 +119,7 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
             <h2 id="lineage-heading" className="text-xl font-semibold">User-selected research lineage</h2>
             <p className="mt-1 text-sm opacity-60">Choose papers; only literal citation edges are present in Phase 1.</p>
             <fieldset className="mt-4 flex flex-wrap gap-2"><legend className="sr-only">Papers in lineage</legend>{paperTimeline.map((paper) => <label key={paper.paperId} className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><input type="checkbox" className="mr-2" checked={lineagePaperIds.has(paper.paperId)} onChange={(event) => setLineagePaperIds((current) => { const next = new Set(current); event.target.checked ? next.add(paper.paperId) : next.delete(paper.paperId); return next; })} />{paper.title}</label>)}</fieldset>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">{lineage.nodes.map((node) => <article key={node.id} className="rounded border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"><h3 className="font-medium">{node.label}</h3><a href={`/read/${node.metadata.paperId}`} className="mt-2 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Read source →</a></article>)}</div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">{lineage.nodes.map((node) => <article key={node.id} className="rounded border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"><h3 className="font-medium">{node.label}</h3><a href={paperHref(String(node.metadata.paperId))} className="mt-2 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Read source →</a></article>)}</div>
             {lineage.edges.length > 0 ? <ul className="mt-4 space-y-2">{lineage.edges.map((edge) => <li key={`${edge.source}-${edge.target}-${edge.type}`} className={`border-l-2 pl-3 text-sm ${edge.generated ? "border-dashed border-violet-500" : "border-sky-500"}`}>{edge.type === "cites" ? "Literal citation" : "Generated relationship"}: {lineage.nodes.find(({ id }) => id === edge.source)?.label} → {lineage.nodes.find(({ id }) => id === edge.target)?.label}</li>)}</ul> : <p className="mt-5 text-sm opacity-55">Select connected papers to see literal lineage edges.</p>}
           </section>
         ) : null}
@@ -123,7 +127,7 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
         {tab === "timeline" ? (
           <section className="mt-6" aria-labelledby="timeline-heading">
             <h2 id="timeline-heading" className="text-xl font-semibold">Paper and figure timeline</h2>
-            <ol className="mt-5 border-l border-sky-400 pl-5">{paperTimeline.map((paper) => <li key={paper.paperId} className="mb-6"><p className="font-mono text-xs text-sky-700 dark:text-sky-300">{paper.year ?? "Date unknown"}</p><h3 className="font-medium">{paper.title}</h3><a href={`/read/${paper.paperId}`} className="text-sm text-sky-700 hover:underline dark:text-sky-300">Open paper →</a><div className="mt-3 grid gap-3 sm:grid-cols-2">{figureTimeline.filter((item) => item.paper.paperId === paper.paperId).map(({ asset }) => <article key={asset.asset_id} className="rounded border bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"><Image unoptimized src={blobUrl(asset.image_url)} alt={asset.caption || asset.label} width={asset.image_width || 800} height={Math.max(240, Math.round((asset.image_width || 800) * 0.62))} className="h-auto w-full bg-white object-contain" /><a href={`/read/${paper.paperId}#page=${asset.page}`} className="mt-2 block text-sm text-sky-700 hover:underline dark:text-sky-300">{asset.label} · source p.{asset.page + 1}</a></article>)}</div></li>)}</ol>
+            <ol className="mt-5 border-l border-sky-400 pl-5">{paperTimeline.map((paper) => <li key={paper.paperId} className="mb-6"><p className="font-mono text-xs text-sky-700 dark:text-sky-300">{paper.year ?? "Date unknown"}</p><h3 className="font-medium">{paper.title}</h3><a href={paperHref(paper.paperId)} className="text-sm text-sky-700 hover:underline dark:text-sky-300">Open paper →</a><div className="mt-3 grid gap-3 sm:grid-cols-2">{figureTimeline.filter((item) => item.paper.paperId === paper.paperId).map(({ asset }) => <article key={asset.asset_id} className="rounded border bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"><Image unoptimized src={blobUrl(asset.image_url)} alt={asset.caption || asset.label} width={asset.image_width || 800} height={Math.max(240, Math.round((asset.image_width || 800) * 0.62))} className="h-auto w-full bg-white object-contain" /><a href={sourceEvidenceHref(assetEvidence(paper.paperId, asset))} className="mt-2 block text-sm text-sky-700 hover:underline dark:text-sky-300">{asset.label} · source p.{asset.page + 1}</a></article>)}</div></li>)}</ol>
           </section>
         ) : null}
 
@@ -144,7 +148,7 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
                 <h3 id="authors-heading" className="font-semibold">Referenced authors</h3>
                 {authorMethodNetwork.nodes.filter(({ type }) => type === "author").length === 0 ? <p className="mt-3 text-sm opacity-55">No observed references with parsed author strings.</p> : (
                   <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {authorMethodNetwork.nodes.filter(({ type }) => type === "author").map((node) => <li key={node.id} className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"><span className="font-medium">{node.label}</span>{node.source ? <a href={`/read/${node.source.paperId}#page=${node.source.page}`} className="mt-1 block text-xs text-sky-700 hover:underline dark:text-sky-300">Observed source p.{node.source.page + 1} →</a> : null}</li>)}
+                    {authorMethodNetwork.nodes.filter(({ type }) => type === "author").map((node) => <li key={node.id} className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"><span className="font-medium">{node.label}</span>{node.source ? <a href={sourceEvidenceHref(node.source)} className="mt-1 block text-xs text-sky-700 hover:underline dark:text-sky-300">Observed source p.{node.source.page + 1} →</a> : null}</li>)}
                   </ul>
                 )}
                 <h4 className="mt-5 text-sm font-semibold">Exact coauthor links</h4>
@@ -153,12 +157,14 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
               <section aria-labelledby="methods-heading" className="rounded-lg border border-neutral-300 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
                 <h3 id="methods-heading" className="font-semibold">Explicit method sections</h3>
                 {authorMethodNetwork.nodes.filter(({ type }) => type === "method").length === 0 ? <p className="mt-3 text-sm opacity-55">No section heading explicitly names a method, approach, architecture, or model.</p> : (
-                  <ul className="mt-3 space-y-3">{authorMethodNetwork.nodes.filter(({ type }) => type === "method").map((node) => <li key={node.id} className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"><span className="font-medium">{node.label}</span><span className="mt-1 block text-xs opacity-55">{String(node.metadata.paperTitle || "Paper")}</span>{node.source ? <a href={`/read/${node.source.paperId}#page=${node.source.page}`} className="mt-2 block text-xs text-sky-700 hover:underline dark:text-sky-300">Open method heading on p.{node.source.page + 1} →</a> : null}</li>)}</ul>
+                  <ul className="mt-3 space-y-3">{authorMethodNetwork.nodes.filter(({ type }) => type === "method").map((node) => <li key={node.id} className="rounded border border-neutral-200 p-3 text-sm dark:border-neutral-800"><span className="font-medium">{node.label}</span><span className="mt-1 block text-xs opacity-55">{String(node.metadata.paperTitle || "Paper")}</span>{node.source ? <a href={sourceEvidenceHref(node.source)} className="mt-2 block text-xs text-sky-700 hover:underline dark:text-sky-300">Open method heading on p.{node.source.page + 1} →</a> : null}</li>)}</ul>
                 )}
               </section>
             </div>
           </section>
         ) : null}
+
+        {tab === "learn" ? <CollectionLearning collection={collection} analyses={analyses} citationModel={citationModel} /> : null}
       </div>
     </main>
   );

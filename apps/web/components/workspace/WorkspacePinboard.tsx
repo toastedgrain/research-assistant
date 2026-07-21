@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { loadManifest } from "../../lib/api";
-import type { SourceEvidence, SourceEvidenceKind } from "../../lib/evidence/source";
+import { sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { validateSourceEvidence } from "../../lib/evidence/resource";
 import type { Manifest } from "../../lib/manifest";
 import { addBoardNode, connectBoardNodes, moveBoardNode, removeBoardNode } from "../../lib/workspace/board";
 import { evidenceLabel } from "../../lib/workspace/evidence";
@@ -15,10 +16,6 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
   const [manifests, setManifests] = useState<Map<string, Manifest>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [paperId, setPaperId] = useState("");
-  const [page, setPage] = useState("1");
-  const [kind, setKind] = useState<SourceEvidenceKind>("passage");
-  const [assetId, setAssetId] = useState("");
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
 
@@ -28,7 +25,6 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
       if (cancelled) return;
       setCollection(result);
       if (!result) return;
-      setPaperId(result.papers[0]?.paperId ?? "");
       const ids = new Set([
         ...result.papers.map(({ paperId: id }) => id),
         ...result.boardNodes.flatMap((node) => node.source ? [node.source.paperId] : []),
@@ -62,31 +58,23 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
           <div>
             <a href="/workspace" className="text-sm text-sky-700 hover:underline dark:text-sky-300">← Collections</a>
             <h1 className="mt-2 text-2xl font-semibold">{collection.name} · Pinboard</h1>
-            <p className="mt-1 text-sm opacity-60">Every card points back to source evidence. Every line is user-created.</p>
+            <p className="mt-1 text-sm opacity-60">Source cards remain verified; note cards are explicitly user-authored. Every line is user-created.</p>
           </div>
           <a href={`/workspace/collections/${collection.id}/compare`} className="rounded border px-3 py-2 text-sm hover:bg-white dark:hover:bg-neutral-900">Compare evidence</a>
         </header>
         {error ? <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
 
-        <section className="mt-6 grid gap-4 rounded-lg border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 lg:grid-cols-[1fr_auto_auto_auto_auto]" aria-label="Add pinboard card">
-          <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Card note" aria-label="Card note" className="rounded border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950" />
-          <select value={paperId} onChange={(event) => setPaperId(event.target.value)} aria-label="Source paper" className="rounded border px-2 py-2 dark:border-neutral-700 dark:bg-neutral-950">
-            <option value="">No source</option>
-            {collection.papers.map((paper) => <option key={paper.paperId} value={paper.paperId}>{paper.title}</option>)}
-          </select>
-          <select value={kind} onChange={(event) => setKind(event.target.value as SourceEvidenceKind)} aria-label="Evidence kind" className="rounded border px-2 py-2 dark:border-neutral-700 dark:bg-neutral-950">
-            {(["passage", "figure", "table", "algorithm", "equation", "caption", "citation"] as const).map((value) => <option key={value}>{value}</option>)}
-          </select>
-          <input type="number" min="1" value={page} onChange={(event) => setPage(event.target.value)} aria-label="Source page" className="w-20 rounded border px-2 py-2 dark:border-neutral-700 dark:bg-neutral-950" />
-          <div className="flex gap-2">
-            <input value={assetId} onChange={(event) => setAssetId(event.target.value)} placeholder="Asset id (optional)" aria-label="Asset id" className="w-36 rounded border px-2 py-2 dark:border-neutral-700 dark:bg-neutral-950" />
-            <button type="button" disabled={!note.trim() && !paperId} onClick={() => {
-              const source: SourceEvidence | undefined = paperId ? { paperId, page: Math.max(0, Number.parseInt(page, 10) - 1 || 0), kind, assetId: assetId.trim() || undefined } : undefined;
-              const index = collection.boardNodes.length;
-              void save(addBoardNode(collection, { id: crypto.randomUUID(), note: note.trim() || undefined, source, x: 30 + (index % 4) * 210, y: 35 + Math.floor(index / 4) * 150 }));
-              setNote(""); setAssetId("");
-            }} className="rounded bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-40">Add card</button>
+        <section className="mt-6 grid gap-3 rounded-lg border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-[1fr_auto]" aria-label="Add user note">
+          <div>
+            <label htmlFor="pinboard-note" className="text-xs font-semibold uppercase tracking-wide opacity-60">User note</label>
+            <input id="pinboard-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write your own note" className="mt-1 w-full rounded border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950" />
+            <p className="mt-1 text-xs opacity-60">Notes are user-authored. Verified evidence is pinned from a source surface.</p>
           </div>
+          <button type="button" disabled={!note.trim()} onClick={() => {
+            const index = collection.boardNodes.length;
+            void save(addBoardNode(collection, { id: crypto.randomUUID(), note: note.trim(), x: 30 + (index % 4) * 210, y: 35 + Math.floor(index / 4) * 150 }));
+            setNote("");
+          }} className="self-end rounded bg-sky-600 px-3 py-2 text-sm text-white disabled:opacity-40">Add user note</button>
         </section>
 
         {collection.boardNodes.length >= 2 ? (
@@ -99,7 +87,8 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
           </section>
         ) : null}
 
-        <section className="relative mt-6 h-[38rem] min-w-[56rem] overflow-hidden rounded-lg border border-neutral-300 bg-[linear-gradient(to_right,rgba(14,165,233,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(14,165,233,.08)_1px,transparent_1px)] bg-[size:24px_24px] dark:border-neutral-800" aria-label="Research pinboard canvas">
+        <div className="mt-6 overflow-x-auto">
+        <section className="relative h-[38rem] min-w-[56rem] overflow-hidden rounded-lg border border-neutral-300 bg-[linear-gradient(to_right,rgba(14,165,233,.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(14,165,233,.08)_1px,transparent_1px)] bg-[size:24px_24px] dark:border-neutral-800" aria-label="Research pinboard canvas">
           <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
             {collection.boardEdges.map((edge) => {
               const from = nodeById.get(edge.sourceNodeId); const to = nodeById.get(edge.targetNodeId);
@@ -108,14 +97,17 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
           </svg>
           {collection.boardNodes.map((node) => {
             const manifest = node.source ? manifests.get(node.source.paperId) ?? null : null;
+            const validation = node.source ? validateSourceEvidence(node.source, manifest) : null;
+            const unavailableReason = validation?.status === "unresolved" ? validation.reason : null;
             return (
               <article key={node.id} draggable onDragEnd={(event) => {
                 const canvas = event.currentTarget.parentElement?.getBoundingClientRect();
                 if (canvas) void save(moveBoardNode(collection, node.id, { x: event.clientX - canvas.left - 85, y: event.clientY - canvas.top - 45 }));
               }} style={{ left: node.x, top: node.y }} className="absolute w-44 cursor-grab rounded-md border border-neutral-300 bg-white p-3 text-sm shadow-md active:cursor-grabbing dark:border-neutral-700 dark:bg-neutral-900">
-                <p className="font-medium">{node.note || "Evidence card"}</p>
+                <p className="text-[0.65rem] font-semibold uppercase tracking-wide opacity-55">{node.source ? validation?.status === "resolved" ? "Verified source" : "Unavailable source" : "User note"}</p>
+                <p className="mt-1 font-medium">{node.note || "Evidence card"}</p>
                 {node.source ? <p className="mt-2 text-xs opacity-65">{evidenceLabel(node.source, manifest)}</p> : null}
-                {node.source && manifest ? <a href={`/read/${node.source.paperId}#page=${node.source.page}`} className="mt-2 block text-xs text-sky-700 hover:underline dark:text-sky-300">Show source →</a> : node.source ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Source unavailable locally</p> : null}
+                {node.source && validation?.status === "resolved" ? <a href={sourceEvidenceHref(node.source)} className="mt-2 block text-xs text-sky-700 hover:underline dark:text-sky-300">Show exact source →</a> : node.source ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Source unavailable: {unavailableReason ?? "source could not be verified"}</p> : null}
                 <div className="mt-3 grid grid-cols-4 gap-1" role="group" aria-label={`Move ${node.note || "evidence card"}`}>
                   <button type="button" aria-label="Move card left" onClick={() => void save(moveBoardNode(collection, node.id, { x: node.x - 24, y: node.y }))} className="rounded border px-1 py-1">←</button>
                   <button type="button" aria-label="Move card up" onClick={() => void save(moveBoardNode(collection, node.id, { x: node.x, y: node.y - 24 }))} className="rounded border px-1 py-1">↑</button>
@@ -127,6 +119,7 @@ export default function WorkspacePinboard({ collectionId }: { collectionId: stri
             );
           })}
         </section>
+        </div>
       </div>
     </main>
   );

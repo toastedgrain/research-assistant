@@ -1,4 +1,4 @@
-import { passageEvidence } from "../evidence/source";
+import { isSourceEvidence, passageEvidence } from "../evidence/source";
 import type { EvidenceResolver } from "../evidence/resource";
 import { passageForSelection, type PaperLearningIndex } from "../learning/paper-index";
 import type { ResearchContext, SelectionContext } from "../research-context/types";
@@ -50,7 +50,7 @@ export function createEvidenceHunt(
       kind: "evidence-hunt",
       selectionInstruction: "Select the passage in the paper that directly supports this prompt, then check your selection.",
       acceptedEvidenceKinds: ["passage"],
-      ...(target.source.sectionId ? { closeSectionId: target.source.sectionId } : {}),
+      ...(isSourceEvidence(target.source) && target.source.sectionId ? { closeSectionId: target.source.sectionId } : {}),
     },
     answer: {
       kind: "evidence-hunt",
@@ -118,10 +118,19 @@ export function evaluateEvidenceHunt(
       maxPoints: challenge.scoring.maxPoints,
     };
   }
-  const targetSections = new Set(accepted.map((target) => target.source.sectionId).filter(Boolean));
+  if (!isSourceEvidence(candidate.source)) {
+    return { state: "unresolved", message: "The selected evidence is not a PDF source passage.", points: 0, maxPoints: challenge.scoring.maxPoints };
+  }
+  const candidateSource = candidate.source;
+  const acceptedSources = accepted.filter((target) => isSourceEvidence(target.source));
+  const targetSections = new Set(
+    acceptedSources
+      .map((target) => isSourceEvidence(target.source) ? target.source.sectionId : undefined)
+      .filter(Boolean),
+  );
   const close =
-    Boolean(candidate.source.sectionId && targetSections.has(candidate.source.sectionId)) ||
-    accepted.some((target) => target.source.page === candidate.source.page);
+    Boolean(candidateSource.sectionId && targetSections.has(candidateSource.sectionId)) ||
+    acceptedSources.some((target) => isSourceEvidence(target.source) && target.source.page === candidateSource.page);
   return close
     ? {
         state: "close",

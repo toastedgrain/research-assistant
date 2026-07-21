@@ -4,6 +4,7 @@ import type { CrossPaperContextProvider } from "../../lib/explore/cross-paper-pr
 import CrossPaperQuest from "./CrossPaperQuest";
 
 const provider: CrossPaperContextProvider = {
+  resolveEvidence(source) { return source; },
   getPaper: (id) => id === "a" ? { paperId: "a", title: "A", arxivId: null } : id === "b" ? { paperId: "b", title: "B", arxivId: null } : null,
   getConnectedPapers: () => [], getCollectionPapers: () => [],
   findEvidence: (query) => [

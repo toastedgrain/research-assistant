@@ -1,4 +1,5 @@
 import type {
+  ChallengeLifecycle,
   ChallengeSpec,
   LearnerResponse,
 } from "./contracts";
@@ -9,6 +10,7 @@ export interface ChallengeScore {
   correct: boolean;
   points: number;
   maxPoints: number;
+  categoryResults?: Record<string, boolean>;
 }
 
 function sameValues(left: readonly string[], right: readonly string[]): boolean {
@@ -34,6 +36,14 @@ export function scoreChallenge(
     correct = expected.length === actual.length && expected.every(([key, value], index) => actual[index]?.[0] === key && actual[index]?.[1] === value);
   } else if (challenge.answer.kind === "order" && response.kind === "order") {
     correct = challenge.answer.itemIds.every((item, index) => response.itemIds[index] === item);
+  } else if (challenge.answer.kind === "paper-check" && response.kind === "paper-check" && challenge.payload.kind === "paper-check") {
+    const categoryResults: Record<string, boolean> = {};
+    for (const question of challenge.payload.questions) {
+      categoryResults[question.category] = response.answers[question.id] === challenge.answer.answers[question.id];
+    }
+    correct = Object.values(categoryResults).every(Boolean);
+    const points = Object.values(categoryResults).filter(Boolean).length;
+    return { correct, points, maxPoints: challenge.payload.questions.length, categoryResults };
   }
 
   return {
@@ -41,4 +51,9 @@ export function scoreChallenge(
     points: correct ? challenge.scoring.maxPoints : 0,
     maxPoints: challenge.scoring.maxPoints,
   };
+}
+
+/** A wrong generic answer stays revisable; only a correct answer completes the activity. */
+export function lifecycleAfterScore(score: Pick<ChallengeScore, "correct">): ChallengeLifecycle {
+  return score.correct ? "complete" : "submitted";
 }

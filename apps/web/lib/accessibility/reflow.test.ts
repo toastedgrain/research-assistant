@@ -3,6 +3,8 @@ import type { Citation } from "../citations";
 import type { Manifest } from "../manifest";
 import type { Mention, PageTextItem } from "../mentions";
 import { buildReflowDocument } from "./reflow";
+import { sourceEvidenceHref } from "../evidence/navigation";
+import { passageEvidence } from "../evidence/source";
 
 const item = (str: string, rect: [number, number, number, number]): PageTextItem => ({
   str,
@@ -122,5 +124,14 @@ describe("semantic reflow", () => {
     const result = buildReflowDocument(manifest, [page], [[mention]], [[citation]]);
     if (result.status !== "ready") throw new Error("expected ready reflow");
     expect(result.blocks.every((block) => block.page === 0)).toBe(true);
+  });
+
+  it("retains paragraph geometry for an exact return to the original source", () => {
+    const result = buildReflowDocument(manifest, [page], [[mention]], [[citation]]);
+    if (result.status !== "ready") throw new Error("expected ready reflow");
+    const paragraph = result.blocks.find((block) => block.type === "paragraph");
+    if (!paragraph || paragraph.type !== "paragraph") throw new Error("expected paragraph");
+    expect(paragraph.bbox).toEqual([0.08, 0.2, 0.45, 0.25]);
+    expect(sourceEvidenceHref(passageEvidence(manifest.doc_id, paragraph.page, paragraph.text, { bbox: paragraph.bbox }))).toContain("bbox=0.08%2C0.2%2C0.45%2C0.25");
   });
 });

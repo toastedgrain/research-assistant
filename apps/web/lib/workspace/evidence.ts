@@ -6,7 +6,6 @@ export function evidenceCandidates(collection: ResearchCollection): SourceEviden
   const candidates = [
     ...collection.pinnedEvidence,
     ...collection.boardNodes.flatMap((node) => node.source ? [node.source] : []),
-    ...collection.notes.flatMap((note) => note.source ? [note.source] : []),
   ];
   return [...new Map(candidates.map((item) => [evidenceKey(item), item])).values()];
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Pin } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { blobUrl } from "../lib/api";
 import type { Asset } from "../lib/manifest";
@@ -25,6 +26,7 @@ interface Props {
   onFocus: () => void;
   onJumpToMention: (mention: Mention) => void;
   onExpand: () => void;
+  onPin: () => void;
 }
 
 /**
@@ -46,12 +48,14 @@ export default function OverlayCard({
   onFocus,
   onJumpToMention,
   onExpand,
+  onPin,
 }: Props) {
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const onPointerDown = useCallback(
     (event: React.PointerEvent) => {
+      if ((event.target as HTMLElement).closest("button")) return;
       onFocus();
       dragOffset.current = { x: event.clientX - card.x, y: event.clientY - card.y };
       setDragging(true);
@@ -77,8 +81,9 @@ export default function OverlayCard({
   }, []);
 
   return (
-    <div
-      className={`fixed z-40 w-80 rounded-lg border shadow-2xl backdrop-blur-md transition-shadow ${
+    <aside
+      aria-label={`${asset.label} source card`}
+      className={`fixed z-40 w-[min(20rem,calc(100vw-1rem))] rounded-lg border shadow-2xl backdrop-blur-md transition-shadow ${
         focused
           ? "border-sky-400 bg-white/95 dark:bg-neutral-900/95"
           : "border-neutral-300/70 bg-white/85 dark:border-neutral-700/70 dark:bg-neutral-900/85"
@@ -87,6 +92,9 @@ export default function OverlayCard({
       onMouseDown={onFocus}
     >
       <header
+        tabIndex={0}
+        aria-label={`Move ${asset.label} card with the arrow keys`}
+        aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
         className={`flex items-center gap-2 rounded-t-lg border-b border-neutral-200/60 px-3 py-1.5 dark:border-neutral-700/60 ${
           dragging ? "cursor-grabbing" : "cursor-grab"
         }`}
@@ -94,6 +102,17 @@ export default function OverlayCard({
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onFocus={onFocus}
+        onKeyDown={(event) => {
+          const delta = event.shiftKey ? 40 : 16;
+          const movement: Record<string, [number, number]> = {
+            ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta],
+          };
+          const offset = movement[event.key];
+          if (!offset) return;
+          event.preventDefault();
+          onMove(card.x + offset[0], card.y + offset[1]);
+        }}
       >
         <span className="rounded bg-neutral-200 px-1.5 text-xs font-mono text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
           {ordinal}
@@ -104,6 +123,9 @@ export default function OverlayCard({
             auto
           </span>
         )}
+        <button type="button" onClick={onPin} aria-label={`Pin ${asset.label} to Workspace`} className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700">
+          <Pin aria-hidden="true" size={14} />
+        </button>
         <button
           type="button"
           onClick={onClose}
@@ -151,6 +173,6 @@ export default function OverlayCard({
           ))}
         </footer>
       )}
-    </div>
+    </aside>
   );
 }

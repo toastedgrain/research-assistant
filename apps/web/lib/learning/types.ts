@@ -84,6 +84,7 @@ export interface ConceptOccurrence {
   passage: PassageRef;
   evidence: SourceEvidence;
   nearbyAssets: AssetRef[];
+  citationLandmarks: string[];
 }
 
 export interface ConceptThreadGroup {

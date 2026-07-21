@@ -1,4 +1,4 @@
-import type { PaperRef, SourceEvidence } from "../evidence/source";
+import { canonicalPaperId, type PaperRef, type SourceEvidence } from "../evidence/source";
 import type { ResearchCollection } from "./types";
 
 type IdentityOptions = { id?: string; now?: number };
@@ -27,8 +27,17 @@ export function createCollection(
 
 /** Upgrade durable browser records without resetting or splitting the canonical store. */
 export function normalizeCollection(value: ResearchCollection | (Omit<ResearchCollection, "version" | "boardEdges"> & { version: 1 })): ResearchCollection {
-  if (value.version === 2) return { ...value, boardEdges: value.boardEdges ?? [] };
-  return { ...value, version: 2, boardEdges: [] };
+  const canonicalSource = (source: SourceEvidence): SourceEvidence => ({ ...source, paperId: canonicalPaperId(source.paperId) });
+  return {
+    ...value,
+    version: 2,
+    papers: value.papers.map((paper) => ({ ...paper, paperId: canonicalPaperId(paper.paperId) })),
+    pinnedEvidence: value.pinnedEvidence.map(canonicalSource),
+    notes: value.notes.map((note) => note.source ? { ...note, source: canonicalSource(note.source) } : note),
+    comparisons: value.comparisons.map((comparison) => ({ ...comparison, evidence: comparison.evidence.map(canonicalSource) })),
+    boardNodes: value.boardNodes.map((node) => node.source ? { ...node, source: canonicalSource(node.source) } : node),
+    boardEdges: value.version === 2 ? value.boardEdges ?? [] : [],
+  };
 }
 
 export function renameCollection(
@@ -48,6 +57,15 @@ export function addPaperToCollection(
 ): ResearchCollection {
   if (collection.papers.some(({ paperId }) => paperId === paper.paperId)) return collection;
   return { ...collection, papers: [...collection.papers, paper], updatedAt: now };
+}
+
+export function removePaperFromCollection(
+  collection: ResearchCollection,
+  paperId: string,
+  now = Date.now(),
+): ResearchCollection {
+  if (!collection.papers.some((paper) => paper.paperId === paperId)) return collection;
+  return { ...collection, papers: collection.papers.filter((paper) => paper.paperId !== paperId), updatedAt: now };
 }
 
 export function addNoteToCollection(

@@ -1,7 +1,9 @@
 import {
   assetEvidence,
+  canonicalPaperId,
   captionEvidence,
   citationEvidence,
+  evidenceKey,
   paperRefOf,
   passageEvidence,
   type PaperRef,
@@ -26,6 +28,7 @@ export interface CrossPaperContextProvider {
   getConnectedPapers(paperId: string): PaperRef[];
   getCollectionPapers(collectionId: string): PaperRef[];
   findEvidence(query: EvidenceQuery): SourceEvidence[];
+  resolveEvidence(source: SourceEvidence): SourceEvidence | null;
 }
 
 export class IndexedCrossPaperContextProvider implements CrossPaperContextProvider {
@@ -69,11 +72,12 @@ export class IndexedCrossPaperContextProvider implements CrossPaperContextProvid
   }
 
   getPaper(paperId: string): PaperRef | null {
-    return this.papers.get(paperId) ?? null;
+    return this.papers.get(canonicalPaperId(paperId)) ?? null;
   }
 
   getConnectedPapers(paperId: string): PaperRef[] {
-    const node = this.graph.graph.nodes.find((candidate) => candidate.metadata.paperId === paperId);
+    const canonicalId = canonicalPaperId(paperId);
+    const node = this.graph.graph.nodes.find((candidate) => candidate.metadata.paperId === canonicalId);
     if (!node) return [];
     const connectedIds = new Set(
       this.graph.graph.edges
@@ -91,7 +95,7 @@ export class IndexedCrossPaperContextProvider implements CrossPaperContextProvid
   }
 
   findEvidence(query: EvidenceQuery): SourceEvidence[] {
-    const paperIds = query.paperIds ? new Set(query.paperIds) : null;
+    const paperIds = query.paperIds ? new Set(query.paperIds.map(canonicalPaperId)) : null;
     const kinds = query.kinds ? new Set(query.kinds) : null;
     const assetIds = query.assetIds ? new Set(query.assetIds) : null;
     const needle = query.text?.trim().toLowerCase();
@@ -103,5 +107,10 @@ export class IndexedCrossPaperContextProvider implements CrossPaperContextProvid
       .filter((item) => !assetIds || (item.assetId ? assetIds.has(item.assetId) : false))
       .filter((item) => !needle || item.text?.toLowerCase().includes(needle))
       .slice(0, limit);
+  }
+
+  resolveEvidence(source: SourceEvidence): SourceEvidence | null {
+    const key = evidenceKey(source);
+    return this.evidence.find((candidate) => evidenceKey(candidate) === key) ?? null;
   }
 }

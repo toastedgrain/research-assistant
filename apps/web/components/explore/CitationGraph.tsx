@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { digestOf, fetchArxiv } from "../../lib/api";
+import { paperHref, sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { citationEvidence, paperIdOf } from "../../lib/evidence/source";
 import { loadPaperAnalysis, type PaperAnalysis } from "../../lib/explore/analysis";
 import {
   addPaperToCitationGraph,
@@ -9,6 +11,8 @@ import {
   paperNodeId,
   type CitationGraphModel,
 } from "../../lib/explore/citation-graph";
+import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
+import { pinVerifiedEvidence } from "../../lib/workspace/pinning";
 
 interface Props {
   analysis: PaperAnalysis;
@@ -34,6 +38,8 @@ export default function CitationGraph({ analysis, digest }: Props) {
   const [selectedId, setSelectedId] = useState(() => paperNodeId(analysis.manifest));
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pinStatus, setPinStatus] = useState("");
+  const repository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
   const layout = useMemo(() => positions(model), [model]);
   const selected = model.graph.nodes.find(({ id }) => id === selectedId) ?? model.graph.nodes[0];
   const trails = model.trails.filter(
@@ -63,7 +69,7 @@ export default function CitationGraph({ analysis, digest }: Props) {
       <section className="mx-auto max-w-4xl p-8" aria-labelledby="citation-graph-heading">
         <h2 id="citation-graph-heading" className="text-2xl font-semibold">Citation graph</h2>
         <p className="mt-2 opacity-65">No directly openable references were found in the paper body.</p>
-        <a href={`/read/${digest}`} className="mt-4 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Return to the paper</a>
+        <a href={paperHref(digest)} className="mt-4 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Return to the paper</a>
       </section>
     );
   }
@@ -115,7 +121,7 @@ export default function CitationGraph({ analysis, digest }: Props) {
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.16em] opacity-50">Selected paper</p>
           <h3 className="mt-2 text-lg font-semibold">{selected?.label}</h3>
           {selected?.metadata.loaded ? (
-            <a href={`/read/${selected.metadata.paperId}`} className="mt-3 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Read loaded paper →</a>
+            <a href={paperHref(String(selected.metadata.paperId))} className="mt-3 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Read loaded paper →</a>
           ) : (
             <button type="button" disabled={loadingId !== null} onClick={() => selected && void expand(selected.id)} className="mt-3 rounded bg-sky-600 px-3 py-2 text-sm text-white hover:bg-sky-500 disabled:opacity-50">{loadingId === selected?.id ? "Loading and analysing…" : "Load and expand one hop"}</button>
           )}
@@ -127,12 +133,18 @@ export default function CitationGraph({ analysis, digest }: Props) {
                 <li key={`${trail.sourceNodeId}-${trail.refId}`} className="border-l-2 border-sky-400 pl-3 text-sm">
                   <p className="font-medium">{trail.reference.title || trail.reference.raw}</p>
                   <ul className="mt-2 space-y-2">
-                    {trail.occurrences.map((occurrence, index) => (
-                      <li key={`${occurrence.page}-${index}`}>
-                        <q className="opacity-75">{occurrence.text}</q>
-                        <a href={`/read/${model.graph.nodes.find(({ id }) => id === trail.sourceNodeId)?.metadata.paperId}#page=${occurrence.page}`} className="mt-1 block font-mono text-[0.68rem] text-sky-700 hover:underline dark:text-sky-300">Source p.{occurrence.page + 1} →</a>
-                      </li>
-                    ))}
+                    {trail.occurrences.map((occurrence, index) => {
+                      const sourcePaperId = String(model.graph.nodes.find(({ id }) => id === trail.sourceNodeId)?.metadata.paperId ?? "");
+                      const source = citationEvidence(sourcePaperId, trail.reference, occurrence.page);
+                      const pinnable = sourcePaperId === paperIdOf(analysis.manifest);
+                      return (
+                        <li key={`${occurrence.page}-${index}`}>
+                          <q className="opacity-75">{occurrence.text}</q>
+                          <a href={sourceEvidenceHref(source)} className="mt-1 block font-mono text-[0.68rem] text-sky-700 hover:underline dark:text-sky-300">Source p.{occurrence.page + 1} →</a>
+                          {pinnable ? <button type="button" onClick={async () => { const result = await pinVerifiedEvidence(repository, analysis.manifest, source); setPinStatus(result.status === "pinned" ? "Verified citation pinned to Workspace." : result.reason); }} className="mt-1 text-xs text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300">Pin verified citation</button> : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </li>
               ))}
@@ -140,6 +152,7 @@ export default function CitationGraph({ analysis, digest }: Props) {
           )}
         </aside>
       </div>
+      <p className="sr-only" aria-live="polite">{pinStatus}</p>
     </section>
   );
 }

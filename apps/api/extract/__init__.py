@@ -5,4 +5,4 @@ Deliberately owns only what Python is better at: figure regions, crops, captions
 references, arXiv resolution. Mention detection lives in the client.
 """
 
-EXTRACTION_VERSION = "1.0.0"
+EXTRACTION_VERSION = "1.0.1"

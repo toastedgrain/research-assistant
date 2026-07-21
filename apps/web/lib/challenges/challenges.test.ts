@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evidenceTarget } from "../evidence/navigation";
 import { passageEvidence } from "../evidence/source";
-import { scoreChallenge } from "./challenge";
+import { lifecycleAfterScore, scoreChallenge } from "./challenge";
 import { challengeEvidence, type ChallengeSpec } from "./contracts";
 
 const target = challengeEvidence(
@@ -46,6 +46,11 @@ describe("challenge scoring", () => {
     const { answer: _answer, scoring: _scoring, ...base } = challenge;
     const explore: ChallengeSpec = { ...base, id: "explore-1", mode: "explore", hints: [] };
     expect(scoreChallenge(explore, { kind: "choice", choiceIds: ["tokens"] })).toBeNull();
+  });
+
+  it("keeps an incorrect generic response in a retryable state", () => {
+    expect(lifecycleAfterScore({ correct: false })).toBe("submitted");
+    expect(lifecycleAfterScore({ correct: true })).toBe("complete");
   });
 
   it("returns the expected zero-based evidence page and bbox", () => {

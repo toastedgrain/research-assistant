@@ -3,6 +3,8 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { digestOf, fetchArxiv } from "../../lib/api";
+import { paperHref, sourceEvidenceHref, sourcePageHref } from "../../lib/evidence/navigation";
+import { assetEvidence, citationEvidence, paperIdOf, passageEvidence } from "../../lib/evidence/source";
 import { buildReflowDocument, type ReflowBlock } from "../../lib/accessibility/reflow";
 import {
   DEFAULT_READING_SETTINGS,
@@ -14,6 +16,9 @@ import {
 } from "../../lib/accessibility/settings";
 import { loadPaperAnalysis, type PaperAnalysis } from "../../lib/explore/analysis";
 import type { Reference } from "../../lib/manifest";
+import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
+import { pinVerifiedEvidence } from "../../lib/workspace/pinning";
+import { readerScrollBehavior } from "../../lib/reader/motion";
 
 function HeadingBlock({ block, digest }: { block: Extract<ReflowBlock, { type: "heading" }>; digest: string }) {
   return createElement(
@@ -23,7 +28,7 @@ function HeadingBlock({ block, digest }: { block: Extract<ReflowBlock, { type: "
     createElement(
       "a",
       {
-        href: `/read/${digest}#page=${block.page}`,
+        href: sourcePageHref(digest, block.page),
         className: "ml-3 align-middle font-mono text-[0.65rem] font-normal text-sky-700 hover:underline dark:text-sky-300",
         "aria-label": `Open ${block.title} in the PDF on page ${block.page + 1}`,
       },
@@ -43,6 +48,7 @@ export default function ReflowReader({ digest }: { digest: string }) {
   const [status, setStatus] = useState("Reader ready");
   const [speechSupported, setSpeechSupported] = useState(false);
   const paragraphRefs = useRef<Array<HTMLElement | null>>([]);
+  const repository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
 
   useEffect(() => {
     setSpeechSupported("speechSynthesis" in window && "SpeechSynthesisUtterance" in window);
@@ -73,7 +79,7 @@ export default function ReflowReader({ digest }: { digest: string }) {
       paragraphRefs.current[clamped]?.focus({ preventScroll: true });
       paragraphRefs.current[clamped]?.scrollIntoView({
         block: "center",
-        behavior: settings.reducedMotion ? "auto" : "smooth",
+        behavior: readerScrollBehavior(settings.reducedMotion),
       });
     });
   }, [paragraphs.length, settings.reducedMotion]);
@@ -130,11 +136,17 @@ export default function ReflowReader({ digest }: { digest: string }) {
     setSettings((current) => normalizeReadingSettings({ ...current, ...patch }));
   };
 
+  const pin = async (source: ReturnType<typeof passageEvidence>) => {
+    if (!analysis) return;
+    const result = await pinVerifiedEvidence(repository, analysis.manifest, source);
+    setStatus(result.status === "pinned" ? "Verified source pinned to Workspace" : result.reason);
+  };
+
   const openReference = async (reference: Reference) => {
     if (!reference.openable || !reference.arxiv_id || openingRefId) return;
     setOpeningRefId(reference.ref_id);
     setError(null);
-    try { router.push(`/read/${digestOf(await fetchArxiv(reference.arxiv_id))}`); }
+    try { router.push(paperHref(digestOf(await fetchArxiv(reference.arxiv_id)))); }
     catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setOpeningRefId(null);
@@ -150,7 +162,7 @@ export default function ReflowReader({ digest }: { digest: string }) {
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-amber-800 dark:text-amber-300">Original layout recommended</p>
           <h1 className="mt-3 text-2xl font-semibold">Reading order is uncertain</h1>
           <p className="mt-3 leading-relaxed opacity-75">This paper’s column geometry cannot be reordered with enough confidence. Marginalia will not present a plausible-looking but broken text order.</p>
-          <a href={`/read/${digest}`} className="mt-6 inline-block rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-950">Read the original PDF</a>
+          <a href={paperHref(digest)} className="mt-6 inline-block rounded bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-950">Read the original PDF</a>
         </section>
       </main>
     );
@@ -168,7 +180,7 @@ export default function ReflowReader({ digest }: { digest: string }) {
       <div className="mx-auto max-w-5xl">
         <header className="border-b border-neutral-300 pb-6 dark:border-neutral-800">
           <nav className="mb-5 flex flex-wrap gap-4 text-sm" aria-label="Paper views">
-            <a href={`/read/${digest}`} className="text-sky-700 hover:underline dark:text-sky-300">← Original PDF</a>
+            <a href={paperHref(digest)} className="text-sky-700 hover:underline dark:text-sky-300">← Original PDF</a>
             <a href={`/explore/${digest}`} className="text-sky-700 hover:underline dark:text-sky-300">Explore paper</a>
           </nav>
           <p className="font-mono text-[0.68rem] uppercase tracking-[0.2em] opacity-60">Semantic reader view · source text only</p>
@@ -207,6 +219,7 @@ export default function ReflowReader({ digest }: { digest: string }) {
             const references = block.citations
               .flatMap((citation) => citation.refIds.map((id) => referenceById.get(id)))
               .filter((reference): reference is Reference => Boolean(reference?.openable && reference.arxiv_id));
+            const paragraphSource = passageEvidence(paperIdOf(analysis.manifest), block.page, block.text, { bbox: block.bbox });
             return (
               <section
                 key={`paragraph-${block.page}-${blockIndex}`}
@@ -218,18 +231,23 @@ export default function ReflowReader({ digest }: { digest: string }) {
               >
                 <p>{block.text}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                  <a href={`/read/${digest}#page=${block.page}`} className="font-mono text-sky-700 hover:underline dark:text-sky-300">Source PDF page {block.page + 1} →</a>
+                  <a href={sourceEvidenceHref(paragraphSource)} className="font-mono text-sky-700 hover:underline dark:text-sky-300">Exact source on PDF page {block.page + 1} →</a>
+                  <button type="button" onClick={() => void pin(paragraphSource)} className="text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300">Pin verified passage</button>
                   {assets.map((asset) => asset ? (
                     <details key={asset.asset_id} className="rounded border border-sky-300 px-2 py-1 dark:border-sky-800">
                       <summary className="cursor-pointer text-sky-800 dark:text-sky-300">{asset.label}: caption and source</summary>
                       <p className="mt-2 max-w-lg text-sm">{asset.caption}</p>
-                      <a href={`/read/${digest}#page=${asset.page}`} className="mt-2 inline-block text-sky-700 hover:underline dark:text-sky-300">Open {asset.label} on PDF page {asset.page + 1} →</a>
+                      <a href={sourceEvidenceHref(assetEvidence(paperIdOf(analysis.manifest), asset))} className="mt-2 inline-block text-sky-700 hover:underline dark:text-sky-300">Open {asset.label} on PDF page {asset.page + 1} →</a>
+                      <button type="button" onClick={() => void pin(assetEvidence(paperIdOf(analysis.manifest), asset))} className="ml-3 text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300">Pin verified asset</button>
                     </details>
                   ) : null)}
                   {references.map((reference) => (
-                    <button key={reference.ref_id} type="button" disabled={openingRefId !== null} onClick={() => void openReference(reference)} className="rounded border border-neutral-300 px-2 py-1 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900">
-                      {openingRefId === reference.ref_id ? "Opening cited paper…" : `Open cited paper: ${reference.title || reference.marker}`}
-                    </button>
+                    <span key={reference.ref_id} className="inline-flex flex-wrap items-center gap-2 rounded border border-neutral-300 px-2 py-1 dark:border-neutral-700">
+                      <a href={sourceEvidenceHref(citationEvidence(paperIdOf(analysis.manifest), reference, block.page))} className="text-sky-700 hover:underline dark:text-sky-300">Source citation {reference.marker}</a>
+                      <button type="button" disabled={openingRefId !== null} onClick={() => void openReference(reference)} className="hover:underline disabled:opacity-50">
+                        {openingRefId === reference.ref_id ? "Opening cited paper…" : `Open cited paper: ${reference.title || reference.marker}`}
+                      </button>
+                    </span>
                   ))}
                 </div>
               </section>

@@ -5,7 +5,7 @@ import {
   evidenceKey,
   passageEvidence,
 } from "./source";
-import { createEvidenceResolver } from "./resource";
+import { createEvidenceResolver, validateSourceEvidence } from "./resource";
 import type { Manifest } from "../manifest";
 import { getPaperLearningIndex, type PaperLearningPage } from "../learning/paper-index";
 import type { ChallengeEvidence } from "../challenges/contracts";
@@ -57,6 +57,10 @@ describe("EvidenceResolver", () => {
     const citationItem = wrapper(citationEvidence(index.paperId, manifest.references[0], 0), { kind: "citation", resourceId: "ref-1" });
 
     expect(resolver.resolve(passageItem)).toMatchObject({ status: "resolved", label: "Passage" });
+    expect(resolver.resolve({
+      ...passageItem,
+      source: { ...passageItem.source, paperId: manifest.doc_id },
+    })).toMatchObject({ status: "resolved", label: "Passage" });
     expect(resolver.resolve(figureItem)).toMatchObject({ status: "resolved", label: "Figure 1" });
     expect(resolver.resolve(citationItem)).toMatchObject({ status: "resolved", label: "Citation" });
   });
@@ -70,5 +74,13 @@ describe("EvidenceResolver", () => {
     expect(resolver.resolve(wrapper(passageEvidence(index.paperId, 4, passage.text), { kind: "passage", resourceId: passage.id })).status).toBe("unresolved");
     expect(resolver.resolve(wrapper(passageEvidence(index.paperId, 0, passage.text), { kind: "passage", resourceId: "missing" })).status).toBe("unresolved");
     expect(resolver.resolve(wrapper({ paperId: index.paperId, page: 0, kind: "figure", assetId: "missing" })).status).toBe("unresolved");
+  });
+
+  it("rejects invalid persisted pages, assets, citations, and unavailable papers", () => {
+    const paperId = manifest.doc_id.replace("sha256:", "");
+    expect(validateSourceEvidence(passageEvidence(paperId, 2, "outside"), manifest).status).toBe("unresolved");
+    expect(validateSourceEvidence({ paperId, page: 0, kind: "figure", assetId: "missing" }, manifest).status).toBe("unresolved");
+    expect(validateSourceEvidence({ paperId, page: 0, kind: "citation", refId: "missing" }, manifest).status).toBe("unresolved");
+    expect(validateSourceEvidence(passageEvidence(paperId, 0, "source"), null)).toMatchObject({ status: "unresolved", reason: expect.stringContaining("unavailable") });
   });
 });

@@ -14,6 +14,26 @@ Two other documents own decisions:
   documents three deliberate deviations from the spec. Do not "fix" code back toward the
   spec without checking the plan.
 
+## Stage 6 integration and acceptance
+
+The expansion has undergone a production-composition and evidence-integrity pass. The
+current implementation snapshot is documented in `STAGE_6_INTEGRATION_ACCEPTANCE.md`; that
+file supersedes older phase-level completion claims below.
+
+- Canonical, type-specific `SourceEvidence` now drives navigation and persisted pins.
+- Reader deep links, responsive sizing, Learn/Quest entry points, Explore, Workspace, and
+  Reflow are mounted in visible production navigation.
+- Challenge retry, clicked-evidence details, deterministic game mechanics, IndexedDB
+  learning progress, and fail-closed cross-paper chronology/evolution are integrated.
+- Collections compose the indexed cross-paper and learning providers in the real research
+  flow.
+- Attention Tables 2 and 3 no longer reproduce the truncated-crop defect; the fix has a
+  raw real-paper geometry regression test.
+- Verification: 215 web tests, 152 Python tests, TypeScript, and production build pass.
+- The actual 1–77 browser walkthrough remains **BLOCKED** because the in-app browser backend
+  reported no available browser. Automated and HTTP checks are not a substitute, so this
+  handoff does not claim visual acceptance.
+
 ---
 
 ## Dev A expansion checkpoints
@@ -273,9 +293,10 @@ against a 30s target.
 3. **BERT's two missing figures and two missing tables** — a recall problem worth a look
    once IoU labels exist to prove a fix does not cost precision.
 4. **Caption-attachment accuracy** is unmeasured.
-5. **Pins do not persist across sessions**, and spec §3's product metrics are not
-   instrumented. Both are out of scope in the plan; §3 needs a survey rather than
-   telemetry anyway, since you cannot observe what someone did in another PDF viewer.
+5. **Product metrics are not instrumented.** Verified evidence pins, collections, board
+   state, and learning progress do persist through IndexedDB. Spec §3 still needs a survey
+   rather than telemetry anyway, since you cannot observe what someone did in another PDF
+   viewer.
 
 ---
 

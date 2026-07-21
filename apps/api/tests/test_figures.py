@@ -12,7 +12,7 @@ from pathlib import Path
 import fitz
 import pytest
 
-from extract.figures import detect_assets
+from extract.figures import _Block, _table_members, detect_assets
 from extract.geometry import iou, normalize_rect
 
 from .conftest import PAGE_H, PAGE_W, PAPER_FIGURE_RECT
@@ -252,3 +252,24 @@ def test_table_region_stops_at_the_next_paragraph(tmp_path: Path) -> None:
     table = {a.asset_id: a for a in found}["tab-1"]
     # Rows end at ~152pt; the paragraph starts at ~172pt. 172/792 = 0.217.
     assert table.bbox[3] < 0.22
+
+
+def test_real_table_rows_are_not_mistaken_for_body_barriers() -> None:
+    """Regression over Attention Table 2's real PyMuPDF block geometry.
+
+    The two 12/13-word rows are prose-shaped in isolation. They belong to the table
+    because they are short and share its exact left/right edges; the following paragraph
+    is taller and uses the body margins.
+    """
+    caption = (0.176, 0.090, 0.824, 0.116)
+    header = _Block((0.223, 0.144, 0.773, 0.185), "table header", is_tabular=True)
+    rows = [
+        _Block((0.223, 0.185, 0.773, 0.199), "GNMT RL result cost value value value value value value value value"),
+        _Block((0.223, 0.199, 0.773, 0.214), "ConvS2S result values"),
+        _Block((0.223, 0.244, 0.773, 0.258), "GNMT ensemble result cost value value value value value value value value value"),
+        _Block((0.223, 0.289, 0.732, 0.304), "Transformer big result"),
+    ]
+    paragraph = _Block((0.176, 0.345, 0.824, 0.401), " ".join(["ordinary"] * 56))
+    members = _table_members([header, *rows, paragraph], caption)
+    assert set(rows).issubset(members)
+    assert paragraph not in members

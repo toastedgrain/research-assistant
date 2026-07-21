@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { blobUrl, digestOf, loadManifest, pdfUrl } from "../lib/api";
 import { findCitations, type Citation } from "../lib/citations";
-import { evidenceTarget } from "../lib/evidence/navigation";
+import { navigateToEvidence as navigateEvidence, paperHref, parseEvidenceHash } from "../lib/evidence/navigation";
 import { createEvidenceResolver } from "../lib/evidence/resource";
 import { getPaperLearningIndex } from "../lib/learning/paper-index";
 import { buildConceptThread } from "../lib/learning/threads";
@@ -13,14 +13,24 @@ import type { Manifest } from "../lib/manifest";
 import { loadPdf, pageTextItems, type PDFDocumentProxy } from "../lib/pdf";
 import { buildResearchContext } from "../lib/research-context/context";
 import type { ResearchContext } from "../lib/research-context/types";
-import { paperIdOf, type SourceEvidence } from "../lib/evidence/source";
+import {
+  assetEvidence,
+  createSourceEvidence,
+  isSourceEvidence,
+  paperIdOf,
+  passageEvidence,
+  type SourceEvidence,
+} from "../lib/evidence/source";
 import type { CapturedSelection } from "../lib/selection/dom";
+import { responsivePageWidth } from "../lib/reader/layout";
+import { readerScrollBehavior } from "../lib/reader/motion";
+import { IndexedDbWorkspaceRepository } from "../lib/workspace/indexed-db";
+import { pinVerifiedEvidence } from "../lib/workspace/pinning";
 import OverlayCard, { type CardState } from "./OverlayCard";
 import PdfPageView from "./PdfPageView";
 import SelectionActionPanel from "./selection/SelectionActionPanel";
 import ReaderLearningLayer from "./learning/ReaderLearningLayer";
 
-const PAGE_WIDTH = 760;
 /** Render the visible page plus one either side: a 40-page paper must not allocate 40 canvases. */
 const RENDER_WINDOW = 1;
 
@@ -57,8 +67,11 @@ export default function Reader({ digest }: { digest: string }) {
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [selectionPanel, setSelectionPanel] = useState<SelectionPanelState | null>(null);
   const [activeEvidence, setActiveEvidence] = useState<SourceEvidence | null>(null);
+  const [pageWidth, setPageWidth] = useState(760);
+  const [pinStatus, setPinStatus] = useState("");
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const workspaceRepository = useMemo(() => new IndexedDbWorkspaceRepository(), []);
 
   // Load the manifest and the PDF, then analyse every page's text once. The reverse
   // index has to exist before the first click, and scanning text (without rendering) is
@@ -127,9 +140,12 @@ export default function Reader({ digest }: { digest: string }) {
           card.assetId === assetId ? { ...card, hard: card.hard || hard } : card,
         );
       }
-      const kept = hard ? previous : previous.filter((card) => card.hard);
+      const kept = (hard ? previous : previous.filter((card) => card.hard)).slice(-2);
       const offset = kept.length * 28;
-      return [...kept, { assetId, x: 40 + offset, y: 110 + offset, hard }];
+      const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
+      const cardWidth = Math.min(320, Math.max(240, viewportWidth - 16));
+      const x = Math.min(40 + offset, Math.max(8, viewportWidth - cardWidth - 8));
+      return [...kept, { assetId, x, y: 110 + offset, hard }];
     });
     setFocused(assetId);
   }, []);
@@ -142,8 +158,24 @@ export default function Reader({ digest }: { digest: string }) {
   const scrollToPage = useCallback((page: number) => {
     const node = scrollRef.current?.querySelector(`[data-page="${page}"]`);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    node?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    node?.scrollIntoView({ behavior: readerScrollBehavior(Boolean(reduceMotion)), block: "start" });
   }, []);
+
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setOutlineOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const update = () => {
+      setPageWidth(responsivePageWidth(container.clientWidth, window.innerWidth));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [outlineOpen, split]);
 
   const focusPaperSelection = useCallback(() => {
     const page = selection?.context.page ?? currentPage;
@@ -157,14 +189,57 @@ export default function Reader({ digest }: { digest: string }) {
   const navigateToEvidence = useCallback(
     (evidence: SourceEvidence) => {
       if (!manifest) return;
-      const target = evidenceTarget(evidence, { [paperIdOf(manifest)]: manifest.page_count });
-      if (!target || target.paperId !== paperIdOf(manifest)) return;
-      setActiveEvidence(evidence);
-      scrollToPage(target.page);
-      if (target.assetId && assetsById.has(target.assetId)) openCard(target.assetId, true);
+      navigateEvidence(evidence, {
+        currentPaperId: paperIdOf(manifest),
+        currentPageCount: manifest.page_count,
+        onCurrent(target, source) {
+          setActiveEvidence(source);
+          scrollToPage(target.page);
+          if (target.assetId && assetsById.has(target.assetId)) openCard(target.assetId, true);
+        },
+      });
     },
     [assetsById, manifest, openCard, scrollToPage],
   );
+
+  useEffect(() => {
+    if (!manifest) return;
+    const applyDeepLink = () => {
+      const target = parseEvidenceHash(window.location.hash, manifest.page_count);
+      if (!target) return;
+      const asset = target.assetId ? assetsById.get(target.assetId) : undefined;
+      const evidence = createSourceEvidence(manifest, {
+        page: target.page,
+        kind: asset?.kind ?? "passage",
+        ...(target.assetId ? { assetId: target.assetId } : {}),
+        ...(target.bbox ? { bbox: target.bbox } : {}),
+      });
+      setActiveEvidence(target.bbox || target.assetId ? evidence : null);
+      window.requestAnimationFrame(() => {
+        scrollToPage(target.page);
+        if (target.assetId && asset) openCard(target.assetId, true);
+      });
+    };
+    applyDeepLink();
+    window.addEventListener("hashchange", applyDeepLink);
+    return () => window.removeEventListener("hashchange", applyDeepLink);
+  }, [assetsById, manifest, openCard, scrollToPage]);
+
+  const pinEvidence = useCallback(async (evidence: SourceEvidence) => {
+    if (!manifest) return;
+    const result = await pinVerifiedEvidence(workspaceRepository, manifest, evidence);
+    setPinStatus(result.status === "pinned" ? "Pinned to Workspace" : result.reason);
+  }, [manifest, workspaceRepository]);
+
+  const pinSelection = useCallback(() => {
+    const passage = researchContext?.sourceWindow.selected;
+    if (!manifest || !passage) return;
+    void pinEvidence(passageEvidence(manifest.doc_id, passage.page, passage.text, {
+      ...(passage.bbox ? { bbox: passage.bbox } : {}),
+      ...(passage.sectionId ? { sectionId: passage.sectionId } : {}),
+    }));
+    setSelection((current) => current ? { ...current, menuOpen: false } : null);
+  }, [manifest, pinEvidence, researchContext]);
 
   const openSelectionContext = useCallback(() => {
     if (!researchContext) return;
@@ -175,7 +250,7 @@ export default function Reader({ digest }: { digest: string }) {
   const openConceptThread = useCallback(() => {
     if (!manifest || !researchContext || !selection) return;
     const thread = buildConceptThread({
-      paperId: manifest.doc_id,
+      paperId: paperIdOf(manifest),
       concept: selection.context.text,
       pages: analysis,
       sections: manifest.sections,
@@ -302,16 +377,23 @@ export default function Reader({ digest }: { digest: string }) {
 
   return (
     <div className={`flex h-screen flex-col ${dark ? "dark bg-neutral-950 text-neutral-100" : "bg-neutral-100"}`}>
-      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-300 px-4 py-2 dark:border-neutral-800">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800 sm:gap-3 sm:px-4">
         <button
           type="button"
           onClick={() => setOutlineOpen((open) => !open)}
           className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
           title="Toggle outline (\\)"
+          aria-label="Toggle paper outline"
         >
           â˜°
         </button>
-        <h1 className="flex-1 truncate text-sm font-medium">{manifest.title || "Untitled paper"}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{manifest.title || "Untitled paper"}</h1>
+        <nav className="order-last flex w-full items-center gap-1 sm:order-none sm:w-auto" aria-label="Primary product views">
+          <a aria-current="page" href={paperHref(digest)} className="rounded bg-neutral-900 px-2 py-1 text-xs text-white dark:bg-white dark:text-neutral-950">Read</a>
+          <a href={`/explore/${digest}`} className="rounded px-2 py-1 text-xs hover:bg-neutral-200 dark:hover:bg-neutral-800">Explore</a>
+          <a href={`/workspace/${digest}`} className="rounded px-2 py-1 text-xs hover:bg-neutral-200 dark:hover:bg-neutral-800">Workspace</a>
+          <a href={`/reflow/${digest}`} className="rounded px-2 py-1 text-xs hover:bg-neutral-200 dark:hover:bg-neutral-800">Reflow</a>
+        </nav>
         <span className="text-xs opacity-60">
           p.{currentPage + 1} / {manifest.page_count}
         </span>
@@ -323,9 +405,11 @@ export default function Reader({ digest }: { digest: string }) {
           type="button"
           onClick={() => setDark((on) => !on)}
           className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
+          aria-label={dark ? "Use light appearance" : "Use dark appearance"}
         >
           {dark ? "â˜€" : "â˜¾"}
         </button>
+        <span className="sr-only" aria-live="polite">{pinStatus}</span>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -362,7 +446,7 @@ export default function Reader({ digest }: { digest: string }) {
 
         <div
           ref={scrollRef}
-          className="min-w-0 flex-1 overflow-y-auto p-6"
+          className="min-w-0 flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6"
           onScroll={() =>
             setSelection((current) =>
               current?.menuOpen ? { ...current, menuOpen: false } : current,
@@ -374,7 +458,7 @@ export default function Reader({ digest }: { digest: string }) {
               key={index}
               doc={doc}
               pageIndex={index}
-              width={PAGE_WIDTH}
+              width={pageWidth}
               active={Math.abs(index - currentPage) <= RENDER_WINDOW}
               dark={dark}
               mentions={analysis[index]?.mentions ?? []}
@@ -394,7 +478,7 @@ export default function Reader({ digest }: { digest: string }) {
         </div>
 
         {split && (
-          <aside className="flex w-1/2 shrink-0 flex-col border-l border-neutral-300 dark:border-neutral-800">
+          <aside className="flex w-1/2 shrink-0 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950 max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full" aria-label="Cited paper split view">
             <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
               <span className="flex-1 truncate text-sm">{split.title}</span>
               <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
@@ -429,11 +513,17 @@ export default function Reader({ digest }: { digest: string }) {
         onSelectionMenuOpenChange={(open) => setSelection((current) => (current ? { ...current, menuOpen: open } : null))}
         onOpenContext={openSelectionContext}
         onOpenTrace={openConceptThread}
+        onPin={pinSelection}
         onCopy={() => {
           if (selection) void navigator.clipboard?.writeText(selection.context.text);
           setSelection((current) => (current ? { ...current, menuOpen: false } : null));
         }}
-        onNavigateEvidence={(evidence) => navigateToEvidence(evidence.source)}
+        onNavigateEvidence={(evidence) => {
+          if (isSourceEvidence(evidence.source)) navigateToEvidence(evidence.source);
+        }}
+        onPinEvidence={(evidence) => {
+          if (isSourceEvidence(evidence.source)) void pinEvidence(evidence.source);
+        }}
         onFocusPaper={focusPaperSelection}
         onRestorePaperPage={scrollToPage}
       />
@@ -452,12 +542,17 @@ export default function Reader({ digest }: { digest: string }) {
             mentions={reverseIndex.get(card.assetId) ?? []}
             onMove={(x, y) =>
               setCards((previous) =>
-                previous.map((c) => (c.assetId === card.assetId ? { ...c, x, y, hard: true } : c)),
+                previous.map((c) => {
+                  if (c.assetId !== card.assetId) return c;
+                  const cardWidth = Math.min(320, Math.max(240, window.innerWidth - 16));
+                  return { ...c, x: Math.max(8, Math.min(x, window.innerWidth - cardWidth - 8)), y: Math.max(72, Math.min(y, window.innerHeight - 120)), hard: true };
+                }),
               )
             }
             onClose={() => closeCard(card.assetId)}
             onFocus={() => setFocused(card.assetId)}
             onExpand={() => setExpanded(card.assetId)}
+            onPin={() => void pinEvidence(assetEvidence(manifest.doc_id, asset))}
             onJumpToMention={(mention) => scrollToPage(mention.page)}
           />
         );
@@ -467,11 +562,16 @@ export default function Reader({ digest }: { digest: string }) {
         <div
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-8"
           onClick={() => setExpanded(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Expanded ${expandedAsset.label}`}
         >
+          <button type="button" onClick={() => setExpanded(null)} className="absolute right-4 top-4 min-h-10 rounded bg-white px-3 text-sm text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Close expanded figure</button>
           <img
             src={blobUrl(expandedAsset.image_url)}
             alt={expandedAsset.caption}
             className="max-h-[80vh] max-w-full bg-white object-contain"
+            onClick={(event) => event.stopPropagation()}
           />
           <p className="mt-3 max-w-3xl text-center text-sm text-neutral-200">
             {expandedAsset.caption}

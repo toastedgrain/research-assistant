@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { paperHref, sourceEvidenceHref } from "../../lib/evidence/navigation";
+import { validateSourceEvidence } from "../../lib/evidence/resource";
 import { loadManifest } from "../../lib/api";
-import { paperRefOf, type PaperRef, type SourceEvidence } from "../../lib/evidence/source";
+import { paperRefOf, type PaperRef } from "../../lib/evidence/source";
+import type { Manifest } from "../../lib/manifest";
 import {
   addNoteToCollection,
   addPaperToCollection,
   createCollection,
+  removePaperFromCollection,
   renameCollection,
 } from "../../lib/workspace/collections";
 import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
@@ -16,6 +20,7 @@ import { collectionHasPaper, collectionRows } from "../../lib/workspace/view-mod
 interface CollectionCardProps {
   collection: ResearchCollection;
   availablePaperIds: ReadonlySet<string>;
+  manifests: ReadonlyMap<string, Manifest>;
   candidate: PaperRef | null;
   onSave(collection: ResearchCollection): Promise<void>;
   onDelete(id: string): Promise<void>;
@@ -24,14 +29,13 @@ interface CollectionCardProps {
 function CollectionCard({
   collection,
   availablePaperIds,
+  manifests,
   candidate,
   onSave,
   onDelete,
 }: CollectionCardProps) {
   const [name, setName] = useState(collection.name);
   const [note, setNote] = useState("");
-  const [sourcePaperId, setSourcePaperId] = useState(collection.papers[0]?.paperId ?? "");
-  const [sourcePage, setSourcePage] = useState("1");
   const rows = collectionRows([collection], availablePaperIds)[0].papers;
 
   return (
@@ -91,21 +95,32 @@ function CollectionCard({
                 <div className="font-medium">{paper.title || "Untitled paper"}</div>
                 {available ? (
                   <div className="mt-1 flex gap-3">
-                    <a className="text-sky-700 hover:underline dark:text-sky-300" href={`/read/${paper.paperId}`}>
+                    <a className="text-sky-700 hover:underline dark:text-sky-300" href={paperHref(paper.paperId)}>
                       Read
                     </a>
                     <a className="text-sky-700 hover:underline dark:text-sky-300" href={`/explore/${paper.paperId}`}>
                       Explore
                     </a>
+                    <button type="button" onClick={() => void onSave(removePaperFromCollection(collection, paper.paperId))} className="text-red-700 hover:underline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300">Remove</button>
                   </div>
                 ) : (
-                  <p className="mt-1 text-amber-700 dark:text-amber-300">Unavailable locally</p>
+                  <div className="mt-1 flex gap-3"><p className="text-amber-700 dark:text-amber-300">Unavailable locally</p><button type="button" onClick={() => void onSave(removePaperFromCollection(collection, paper.paperId))} className="text-red-700 hover:underline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300">Remove</button></div>
                 )}
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {collection.pinnedEvidence.length > 0 && (
+        <section className="mt-5" aria-labelledby={`evidence-${collection.id}`}>
+          <h2 id={`evidence-${collection.id}`} className="text-xs font-semibold uppercase tracking-wide opacity-60">Verified source evidence</h2>
+          <ul className="mt-2 space-y-2">{collection.pinnedEvidence.map((source) => {
+            const validation = validateSourceEvidence(source, manifests.get(source.paperId) ?? null);
+            return <li key={sourceEvidenceHref(source)} className="rounded bg-neutral-50 p-3 text-sm dark:bg-neutral-950"><span className="font-medium capitalize">{validation.status === "resolved" ? `Verified ${source.kind}` : source.kind}</span><span className="ml-2 text-xs opacity-55">page {source.page + 1}</span>{validation.status === "resolved" ? <a href={sourceEvidenceHref(source)} className="mt-1 block text-sky-700 hover:underline dark:text-sky-300">Open exact source →</a> : <span className="mt-1 block text-amber-700 dark:text-amber-300">Source unavailable: {validation.reason}</span>}</li>;
+          })}</ul>
+        </section>
+      )}
 
       <nav className="mt-5 flex gap-2 border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800" aria-label={`${collection.name} workspace tools`}>
         <a href={`/workspace/collections/${collection.id}/board`} className="rounded border px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">Open pinboard</a>
@@ -118,17 +133,10 @@ function CollectionCard({
           Notes
         </h2>
         <form
-          className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto]"
+          className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
-            const source: SourceEvidence | undefined = sourcePaperId
-              ? {
-                  paperId: sourcePaperId,
-                  page: Math.max(0, Number.parseInt(sourcePage, 10) - 1 || 0),
-                  kind: "passage",
-                }
-              : undefined;
-            const updated = addNoteToCollection(collection, note, source);
+            const updated = addNoteToCollection(collection, note);
             if (updated !== collection) {
               setNote("");
               void onSave(updated);
@@ -143,44 +151,14 @@ function CollectionCard({
             placeholder="Add a note"
             className="rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
           />
-          <label className="sr-only" htmlFor={`source-${collection.id}`}>Source paper</label>
-          <select
-            id={`source-${collection.id}`}
-            value={sourcePaperId}
-            onChange={(event) => setSourcePaperId(event.target.value)}
-            className="rounded border border-neutral-300 px-2 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-          >
-            <option value="">No source</option>
-            {collection.papers.map((paper) => (
-              <option key={paper.paperId} value={paper.paperId}>{paper.title}</option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <label className="sr-only" htmlFor={`page-${collection.id}`}>Source page</label>
-            <input
-              id={`page-${collection.id}`}
-              type="number"
-              min="1"
-              value={sourcePage}
-              onChange={(event) => setSourcePage(event.target.value)}
-              title="Source page"
-              className="w-20 rounded border border-neutral-300 px-2 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-            />
-            <button type="submit" className="rounded border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Add</button>
-          </div>
+          <button type="submit" className="rounded border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Add user note</button>
         </form>
         <ul className="mt-3 space-y-2">
           {collection.notes.map((item) => (
             <li key={item.id} className="border-l-2 border-sky-500 pl-3 text-sm">
               <p>{item.text}</p>
-              {item.source && (
-                <a
-                  href={`/read/${item.source.paperId}#page=${item.source.page}`}
-                  className="mt-1 inline-block text-xs text-sky-700 hover:underline dark:text-sky-300"
-                >
-                  Show source, page {item.source.page + 1} →
-                </a>
-              )}
+              <p className="mt-1 text-xs opacity-55">User-authored note</p>
+              {item.source && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Legacy unverified pointer retained as note metadata; not an active source link.</p>}
             </li>
           ))}
         </ul>
@@ -194,6 +172,7 @@ export default function WorkspaceShell({ digest }: { digest?: string }) {
   const [collections, setCollections] = useState<ResearchCollection[]>([]);
   const [candidate, setCandidate] = useState<PaperRef | null>(null);
   const [availablePaperIds, setAvailablePaperIds] = useState<Set<string>>(new Set());
+  const [manifests, setManifests] = useState<Map<string, Manifest>>(new Map());
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -208,11 +187,17 @@ export default function WorkspaceShell({ digest }: { digest?: string }) {
         const resolved = await Promise.allSettled([...ids].map((paperId) => loadManifest(paperId)));
         if (cancelled) return;
         const available = new Set<string>();
+        const loadedManifests = new Map<string, Manifest>();
         for (const result of resolved) {
-          if (result.status === "fulfilled") available.add(paperRefOf(result.value).paperId);
+          if (result.status === "fulfilled") {
+            const paperId = paperRefOf(result.value).paperId;
+            available.add(paperId);
+            loadedManifests.set(paperId, result.value);
+          }
         }
         setCollections(stored);
         setAvailablePaperIds(available);
+        setManifests(loadedManifests);
         if (digest) {
           const match = resolved[[...ids].indexOf(digest)];
           if (match?.status === "fulfilled") setCandidate(paperRefOf(match.value));
@@ -291,6 +276,7 @@ export default function WorkspaceShell({ digest }: { digest?: string }) {
                 key={collection.id}
                 collection={collection}
                 availablePaperIds={availablePaperIds}
+                manifests={manifests}
                 candidate={candidate}
                 onSave={save}
                 onDelete={remove}

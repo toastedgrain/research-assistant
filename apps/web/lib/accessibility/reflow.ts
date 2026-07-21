@@ -23,6 +23,7 @@ export interface ReflowParagraph {
   page: number;
   assetIds: string[];
   citations: ReflowCitation[];
+  bbox: BBox;
 }
 
 export type ReflowBlock = ReflowHeading | ReflowParagraph;
@@ -177,6 +178,7 @@ export function buildReflowDocument(
         type: "paragraph",
         text,
         page,
+        bbox: union(paragraphLines.map((line) => line.rect)),
         ...actionsFor(text, mentionsByPage[page] ?? [], citationsByPage[page] ?? []),
       });
       paragraphLines = [];

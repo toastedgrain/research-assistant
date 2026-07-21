@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { paperHref } from "../../lib/evidence/navigation";
 import { loadPaperAnalysis, type PaperAnalysis } from "../../lib/explore/analysis";
 import FigureAtlas from "./FigureAtlas";
 import PaperMap from "./PaperMap";
@@ -15,12 +16,13 @@ import CitationGraph from "./CitationGraph";
  * "never render a dead affordance" rule the reader follows.
  */
 
-export type ExploreTab = "figures" | "paper-map" | "citations";
+export type ExploreTab = "figures" | "paper-map" | "citations" | "research";
 
 const TABS: { key: ExploreTab; label: string }[] = [
   { key: "figures", label: "Figures" },
   { key: "paper-map", label: "Paper Map" },
   { key: "citations", label: "Citations" },
+  { key: "research", label: "Timeline · Lineage · Constellation" },
 ];
 
 export default function ExploreShell({ digest }: { digest: string }) {
@@ -53,7 +55,7 @@ export default function ExploreShell({ digest }: { digest: string }) {
     <div className="min-h-screen bg-neutral-100 dark:bg-neutral-950 dark:text-neutral-100">
       <header className="flex items-center gap-4 border-b border-neutral-300 bg-white px-4 py-2 dark:border-neutral-800 dark:bg-neutral-900">
         <a
-          href={`/read/${digest}`}
+          href={paperHref(digest)}
           className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
           title="Back to the paper"
         >
@@ -100,6 +102,20 @@ export default function ExploreShell({ digest }: { digest: string }) {
         {tab === "figures" && <FigureAtlas analysis={analysis} digest={digest} />}
         {tab === "paper-map" && <PaperMap analysis={analysis} digest={digest} />}
         {tab === "citations" && <CitationGraph analysis={analysis} digest={digest} />}
+        {tab === "research" && (
+          <section className="mx-auto max-w-4xl p-8" aria-labelledby="collection-research-heading">
+            <h2 id="collection-research-heading" className="text-2xl font-semibold">Collection research views</h2>
+            <p className="mt-2 max-w-2xl text-sm opacity-65">Timeline, literal-citation lineage, figure timeline, constellation, author network, method network, and cross-paper learning operate over a bounded persisted collection.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {[
+                ["Timeline", "Verified publication chronology plus original figures."],
+                ["Lineage", "User-selected papers with literal citation edges only."],
+                ["Constellation", "Fixed-size paper nodes connected by observed citations."],
+              ].map(([label, description]) => <article key={label} className="rounded border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"><h3 className="font-medium">{label}</h3><p className="mt-2 text-sm opacity-60">{description}</p></article>)}
+            </div>
+            <a href="/workspace" className="mt-6 inline-block rounded bg-sky-700 px-4 py-2 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">Choose a collection in Workspace</a>
+          </section>
+        )}
       </main>
     </div>
   );

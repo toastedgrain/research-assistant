@@ -1,4 +1,10 @@
-# Developer B Expansion Completion Audit
+# Developer B Expansion Completion Audit (historical snapshot)
+
+> **Superseded by `STAGE_6_INTEGRATION_ACCEPTANCE.md`.** The earlier audit checked library
+> coverage but overstated live-browser verification and did not prove that every surface was
+> composed into the product. Stage 6 re-audited production routes, shared evidence identity,
+> provider composition, persistence, and fail-closed behavior. The full browser walkthrough
+> remains blocked because no in-app browser was available.
 
 Audited against `MARGINALIA_EXPANSION_ARCHITECTURE_AND_DEV_SPLIT (1).md` Developer B
 primary ownership and detailed sections B1–B12 / 10 / 11 / 12.
@@ -25,16 +31,16 @@ primary ownership and detailed sections B1–B12 / 10 / 11 / 12.
 | Read aloud | Feature-detected Speech Synthesis over reflow paragraphs only |
 | General keyboard accessibility | Native controls, J/K paragraph navigation, non-drag board movement |
 
-## Verification snapshot
+## Current verification snapshot
 
-- Web: 141 Vitest tests
-- API/extraction: 151 Pytest tests
-- TypeScript: `tsc --noEmit`
-- Next.js: production build
-- Live browser: IndexedDB create/reload/delete and unavailable-paper behavior; base reader
-  figure/citation/dark-mode regression from the earlier phase verification
+- Web: 45 Vitest files, 215 tests passed
+- API/extraction: 152 Pytest tests passed
+- TypeScript: `tsc --noEmit` passed
+- Next.js: production build passed
+- Live HTTP: API health/manifest and Reader, Explore, Reflow, and Workspace routes returned 200
+- Live browser: **BLOCKED** — the in-app browser backend reported no available browser
 
-The only intentionally untouched item is the shared global reader routing slot in
-`Reader.tsx`. Section 18 marks it as coordination-sensitive, and Developer A owns concurrent
-reader changes. Developer B surfaces are complete and directly routable without that shared
-edit.
+The shared reader routing slot is no longer untouched: Reader now visibly exposes Explore,
+Workspace, Reflow, and `Read / Learn / Quest`, and it consumes exact evidence deep links.
+This document must not be used to claim visual completion; see the current audit for the
+per-feature status and remaining acceptance gate.
