@@ -1,0 +1,11 @@
+{
+  "paper": "1706.03762",
+  "title": "Attention Is All You Need",
+  "labelled_by": "hand, reading the page text directly",
+  "note": "Page indices are 0-based, matching the manifest. Only the pages listed here are labelled; the harness measures precision and recall over these alone and reports the rest as unmeasured. Page 2 contains two occurrences of the string 'Figure 1', but the first is the figure's own caption and is not a mention of itself.",
+  "mentions": {
+    "2": ["fig-1"],
+    "4": ["fig-2", "fig-2"]
+  },
+  "assets": {}
+}

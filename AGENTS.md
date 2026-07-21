@@ -19,8 +19,26 @@ structured data, not prose shown to the reader as fact. Justify any new one agai
 
 ## Status
 
-Pre-implementation, mid-scaffold. Only `apps/api` exists (uv project + deps, no code yet).
-Everything below marked *planned* is not built.
+All eight phases of `SHIP_PLAN.md` are built and the loop runs end to end: paste an arXiv
+id, read the paper, click a figure mention, get the figure in place.
+
+- **Extraction** (`apps/api/extract/`) — figures, tables, crops, captions, sections,
+  references, arXiv resolution. CLI: `uv run python -m extract paper.pdf`.
+- **API** (`apps/api/main.py`) — upload/arXiv ingest, manifest, blob store.
+- **Reader** (`apps/web/`) — pdf.js viewer, hotspots, overlay cards, reverse links,
+  side-by-side citations, outline, keyboard, dark mode, auto-dock.
+- **Eval** (`eval/`) — figure coverage and timing in Python, mentions in Node.
+
+Verified on *Attention Is All You Need*, *ResNet* and *BERT*: 5/5, 7/7 and 3/5 figures;
+4/4, 14/14 and 6/8 tables. Everything not detected is dropped with a warning and renders
+no affordance.
+
+**Known gaps, in priority order.** Figure-region IoU and caption-attachment accuracy are
+unmeasured — there are no hand-labelled bounding boxes, and `eval/` reports that as
+UNMEASURED rather than inventing a number. Mention precision/recall are measured on two
+labelled pages of one paper, which is a smoke test with a percentage attached, not the
+30-paper golden set spec §11 asks for. Pins do not persist across sessions, and spec §3's
+product metrics are not instrumented.
 
 Two source-of-truth documents:
 
