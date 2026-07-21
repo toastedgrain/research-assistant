@@ -88,6 +88,30 @@ export default function ReaderLearningLayer({
     setView("challenge");
   };
 
+  const closeChallenge = () => {
+    setChallenge(null);
+    setView("challenge");
+    setReturnRecord(undefined);
+    onFocusPaper();
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (view === "evidence") {
+        event.stopImmediatePropagation();
+        backToChallenge();
+        return;
+      }
+      if (challenge) {
+        event.stopImmediatePropagation();
+        closeChallenge();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [challenge, view]);
+
   const showEvidence = (evidence: ChallengeEvidence) => {
     if (challenge && returnRecord) setReturnRecord(createChallengeReturnRecord(returnRecord));
     setReturnPage(huntSelection?.page ?? selection?.context.page);
@@ -136,13 +160,13 @@ export default function ReaderLearningLayer({
       )}
 
       {challenge && view === "challenge" && index && resolver && (
-        <aside className="fixed bottom-4 left-4 z-40 max-h-[min(560px,calc(100vh-32px))] w-[min(430px,calc(100vw-32px))] overflow-y-auto">
+        <aside className="fixed bottom-4 left-4 z-40 max-h-[min(560px,calc(100vh-32px))] w-[min(430px,calc(100vw-32px))] max-md:inset-x-3 max-md:bottom-3 max-md:w-auto overflow-y-auto">
           <div className="flex justify-end bg-white px-2 pt-2 shadow-lg dark:bg-neutral-950">
             <button
               type="button"
-              onClick={() => setChallenge(null)}
+              onClick={closeChallenge}
               aria-label="Close learning interaction"
-              className="flex h-8 w-8 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="flex h-8 w-8 items-center justify-center hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-sky-600 dark:hover:bg-neutral-800"
             >
               <X aria-hidden="true" size={16} />
             </button>
@@ -165,7 +189,7 @@ export default function ReaderLearningLayer({
       )}
 
       {challenge && view === "evidence" && activeEvidence && (
-        <aside className="fixed bottom-4 left-4 z-40 w-[min(430px,calc(100vw-32px))] border border-neutral-300 bg-white p-4 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
+        <aside className="fixed bottom-4 left-4 z-40 w-[min(430px,calc(100vw-32px))] max-md:inset-x-3 max-md:bottom-3 max-md:w-auto border border-neutral-300 bg-white p-4 shadow-xl dark:border-neutral-700 dark:bg-neutral-950">
           <p className="text-xs font-medium uppercase text-neutral-500">Source evidence</p>
           <p className="mt-2 text-sm leading-6">{evidenceDescription(activeEvidence, resolver)}</p>
           <p className="mt-2 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{activeEvidence.reason}</p>

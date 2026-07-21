@@ -1,7 +1,7 @@
 "use client";
 
 import { BookOpenText, BrainCircuit, Copy, LocateFixed, Route, Sparkles, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SelectionAnchor } from "../../lib/selection/dom";
 
 interface Props {
@@ -31,6 +31,7 @@ export default function SelectionMenu({
   onClose,
 }: Props) {
   const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState(anchor);
 
   // Keyboard text selection has no pointer target to return focus to. Put focus on the
   // first available action so Enter/Space and Tab can complete the same path.
@@ -38,13 +39,24 @@ export default function SelectionMenu({
     toolbarRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, []);
 
+  // A browser selection can sit at a viewport edge. Keep the menu on screen instead of
+  // leaving a keyboard action inaccessible beyond the visible page.
+  useEffect(() => {
+    const node = toolbarRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const x = Math.max(rect.width / 2 + 12, Math.min(anchor.x, window.innerWidth - rect.width / 2 - 12));
+    const y = Math.max(12, Math.min(anchor.y, window.innerHeight - rect.height - 12));
+    setPosition({ x, y });
+  }, [anchor]);
+
   return (
     <div
       ref={toolbarRef}
       role="toolbar"
       aria-label="Selection actions"
       className="fixed z-50 flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap overflow-hidden rounded-md border border-neutral-300 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
-      style={{ left: anchor.x, top: anchor.y }}
+      style={{ left: position.x, top: position.y }}
       onMouseDown={(event) => event.preventDefault()}
     >
       {onEvidenceHunt && (
@@ -85,7 +97,7 @@ export default function SelectionMenu({
       </button>
       <button
         type="button"
-        className="flex h-9 w-9 shrink-0 items-center justify-center border-l border-neutral-200 text-neutral-500 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        className="flex h-9 w-9 shrink-0 items-center justify-center border-l border-neutral-200 text-neutral-500 hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-800"
         onClick={onClose}
         aria-label="Close selection actions"
       >

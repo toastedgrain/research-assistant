@@ -86,13 +86,24 @@ export default function LearningModes({
     onRequestedActionHandled?.();
   }, [onRequestedActionHandled, onStartChallenge, quickQuiz, requestedAction]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || mode === "read") return;
+      event.stopImmediatePropagation();
+      setMode("read");
+      setUnderstand(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mode]);
+
   const start = (challenge: ChallengeSpec | null) => {
     if (!challenge) return;
     onStartChallenge(challenge);
   };
 
   return (
-    <aside className="fixed bottom-4 right-4 z-30 w-[min(360px,calc(100vw-32px))] text-neutral-900 dark:text-neutral-100">
+    <aside className="fixed bottom-4 right-4 z-30 w-[min(360px,calc(100vw-32px))] max-md:inset-x-3 max-md:bottom-3 max-md:w-auto text-neutral-900 dark:text-neutral-100">
       <div className="flex overflow-hidden rounded-md border border-neutral-300 bg-white/95 shadow-lg backdrop-blur dark:border-neutral-700 dark:bg-neutral-950/95">
         {(["read", "learn", "quest"] as const).map((candidate) => (
           <button
@@ -103,7 +114,7 @@ export default function LearningModes({
               setMode(candidate);
               if (candidate === "read") setUnderstand(null);
             }}
-            className={`min-h-10 flex-1 px-3 text-sm font-medium capitalize ${mode === candidate ? "bg-sky-700 text-white" : "hover:bg-neutral-100 dark:hover:bg-neutral-900"}`}
+            className={`min-h-10 flex-1 px-3 text-sm font-medium capitalize focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-600 ${mode === candidate ? "bg-sky-700 text-white" : "hover:bg-neutral-100 dark:hover:bg-neutral-900"}`}
           >
             {candidate}
           </button>
@@ -117,7 +128,7 @@ export default function LearningModes({
             <h2 className="text-sm font-semibold">Learn mode</h2>
             <p className="mt-1 text-xs leading-5 text-neutral-600 dark:text-neutral-300">Optional source-led support; it never interrupts scrolling.</p>
           </div>
-          <button type="button" className="h-8 w-8" onClick={() => setMode("read")} aria-label="Close Learn mode"><X aria-hidden="true" size={16} /></button>
+          <button type="button" className="h-8 w-8 focus-visible:outline-2 focus-visible:outline-sky-600" onClick={() => setMode("read")} aria-label="Close Learn mode"><X aria-hidden="true" size={16} /></button>
         </header>
 
         <section className="mt-4" aria-label="Relative reading density">
@@ -139,13 +150,13 @@ export default function LearningModes({
             <p className="mt-1 line-clamp-2 text-xs text-neutral-600 dark:text-neutral-300">{context.selection.text}</p>
           ) : <p className="mt-1 text-xs text-neutral-500">Select source text to focus these actions.</p>}
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">Explain simply (source-only)</button>
-            <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">Break into source parts</button>
-            <button type="button" onClick={() => setUnderstand("prerequisites")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">Show prerequisites</button>
-            <button type="button" onClick={() => setUnderstand("visualize")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">Visualize</button>
-            <button type="button" onClick={onTrace} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">Trace in paper</button>
+            <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Explain simply (source-only)</button>
+            <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Break into source parts</button>
+            <button type="button" onClick={() => setUnderstand("prerequisites")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Show prerequisites</button>
+            <button type="button" onClick={() => setUnderstand("visualize")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Visualize</button>
+            <button type="button" onClick={onTrace} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Trace in paper</button>
           </div>
-          <button type="button" onClick={() => start(quickQuiz)} disabled={!quickQuiz} className="mt-2 min-h-9 w-full border border-sky-700 px-2 text-xs text-sky-800 disabled:opacity-40 dark:text-sky-300">Learn interactively</button>
+          <button type="button" onClick={() => start(quickQuiz)} disabled={!quickQuiz} className="mt-2 min-h-9 w-full border border-sky-700 px-2 text-xs text-sky-800 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-40 dark:text-sky-300">Learn interactively</button>
 
           {understand === "parts" && (
             <div className="mt-3 border-l-2 border-sky-600 pl-3 text-xs leading-5">
@@ -174,7 +185,7 @@ export default function LearningModes({
         <header className="flex items-start gap-2">
           <Compass aria-hidden="true" className="mt-0.5 text-sky-700 dark:text-sky-300" size={18} />
           <div className="flex-1"><h2 className="text-sm font-semibold">Quest mode</h2><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Read the paper first; choose a checkpoint when it is useful.</p></div>
-          <button type="button" className="h-8 w-8" onClick={() => setMode("read")} aria-label="Close Quest mode"><X aria-hidden="true" size={16} /></button>
+          <button type="button" className="h-8 w-8 focus-visible:outline-2 focus-visible:outline-sky-600" onClick={() => setMode("read")} aria-label="Close Quest mode"><X aria-hidden="true" size={16} /></button>
         </header>
         <section className="mt-4" aria-label="Section checkpoints">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Section checkpoints</h3>
@@ -187,13 +198,13 @@ export default function LearningModes({
               return (
                 <div key={checkpoint.id} className="border border-neutral-200 p-2 dark:border-neutral-800">
                   <div className="flex gap-2"><GitBranch aria-hidden="true" className="mt-0.5 shrink-0" size={14} /><p className="min-w-0 flex-1 text-xs font-medium">{checkpoint.label}</p>{complete && <span className="text-xs text-emerald-700 dark:text-emerald-300">completed</span>}</div>
-                  {challenge ? <button type="button" onClick={() => start(challenge)} className="mt-2 min-h-8 border border-sky-700 px-2 text-xs text-sky-800 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950">Open {challenge.type.replaceAll("-", " ")}</button> : <p className="mt-2 text-xs text-neutral-500">No high-confidence checkpoint here.</p>}
+                  {challenge ? <button type="button" onClick={() => start(challenge)} className="mt-2 min-h-8 border border-sky-700 px-2 text-xs text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950">Open {challenge.type.replaceAll("-", " ")}</button> : <p className="mt-2 text-xs text-neutral-500">No high-confidence checkpoint here.</p>}
                 </div>
               );
             })}
           </div>
         </section>
-        {paperCheck && <button type="button" onClick={() => start(paperCheck)} className="mt-4 flex min-h-9 w-full items-center justify-center gap-2 bg-sky-700 px-3 text-sm font-medium text-white"><Sparkles aria-hidden="true" size={15} />Open Paper Check</button>}
+        {paperCheck && <button type="button" onClick={() => start(paperCheck)} className="mt-4 flex min-h-9 w-full items-center justify-center gap-2 bg-sky-700 px-3 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"><Sparkles aria-hidden="true" size={15} />Open Paper Check</button>}
       </section>
     </aside>
   );

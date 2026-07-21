@@ -68,6 +68,7 @@ describe("ChallengeRendererShell", () => {
     expect(markup).toContain("What does attention mix?");
     expect(markup).toContain("Values");
     expect(markup).toContain("Passage / p. 1 / Method");
+    expect(markup).toContain("Show evidence");
     expect(markup).toContain("The paper defines the relationship");
   });
 

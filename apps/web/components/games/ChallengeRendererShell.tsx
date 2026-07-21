@@ -223,7 +223,7 @@ export default function ChallengeRendererShell({
                   type="button"
                   aria-pressed={selected}
                   disabled={lifecycle === "complete"}
-                  className={`min-h-10 border px-3 py-2 text-left text-sm ${
+                  className={`min-h-10 border px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 ${
                     selected
                       ? "border-sky-600 bg-sky-50 dark:bg-sky-950"
                       : "border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
@@ -256,7 +256,7 @@ export default function ChallengeRendererShell({
                   type="button"
                   disabled={lifecycle === "complete"}
                   aria-pressed={pendingConcept === concept.id}
-                  className={`min-h-10 border px-3 py-2 text-left text-sm ${pendingConcept === concept.id ? "border-sky-600 bg-sky-50 dark:bg-sky-950" : "border-neutral-300 dark:border-neutral-700"}`}
+                  className={`min-h-10 border px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 ${pendingConcept === concept.id ? "border-sky-600 bg-sky-50 dark:bg-sky-950" : "border-neutral-300 dark:border-neutral-700"}`}
                   onClick={() => setPendingConcept(concept.id)}
                 >
                   <strong>{concept.label}</strong>
@@ -270,7 +270,7 @@ export default function ChallengeRendererShell({
                   key={definition.id}
                   type="button"
                   disabled={!pendingConcept || lifecycle === "complete"}
-                  className="min-h-10 border border-neutral-300 px-3 py-2 text-left text-sm disabled:opacity-45 dark:border-neutral-700"
+                  className="min-h-10 border border-neutral-300 px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-45 dark:border-neutral-700"
                   onClick={() => {
                     if (!pendingConcept) return;
                     setResponse({ kind: "pairs", pairs: { ...response.pairs, [pendingConcept]: definition.id } });
@@ -303,7 +303,7 @@ export default function ChallengeRendererShell({
                   type="button"
                   disabled={lifecycle === "complete" || index === 0}
                   aria-label={`Move ${choiceLabel(ordering.items, itemId)} up`}
-                  className="flex h-8 w-8 items-center justify-center disabled:opacity-25"
+                  className="flex h-8 w-8 items-center justify-center focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-25"
                   onClick={() => {
                     const next = [...response.itemIds];
                     [next[index - 1], next[index]] = [next[index], next[index - 1]];
@@ -314,7 +314,7 @@ export default function ChallengeRendererShell({
                   type="button"
                   disabled={lifecycle === "complete" || index === response.itemIds.length - 1}
                   aria-label={`Move ${choiceLabel(ordering.items, itemId)} down`}
-                  className="flex h-8 w-8 items-center justify-center disabled:opacity-25"
+                  className="flex h-8 w-8 items-center justify-center focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-25"
                   onClick={() => {
                     const next = [...response.itemIds];
                     [next[index], next[index + 1]] = [next[index + 1], next[index]];
@@ -334,7 +334,7 @@ export default function ChallengeRendererShell({
             type="button"
             disabled={!ready(response, challenge)}
             onClick={submitGeneric}
-            className="min-h-9 bg-sky-700 px-3 text-sm font-medium text-white disabled:opacity-40"
+            className="min-h-9 bg-sky-700 px-3 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-40"
           >
             Check answer
           </button>
@@ -347,7 +347,7 @@ export default function ChallengeRendererShell({
                 <button
                   type="button"
                   onClick={() => setPredictionRevealed(true)}
-                  className="min-h-9 w-fit border border-sky-700 px-3 text-sm text-sky-800 hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-sky-950"
+                  className="min-h-9 w-fit border border-sky-700 px-3 text-sm text-sky-800 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:text-sky-300 dark:hover:bg-sky-950"
                 >
                   Reveal the paper’s result
                 </button>
@@ -371,11 +371,11 @@ export default function ChallengeRendererShell({
                 key={evidence.id}
                 type="button"
                 onClick={() => onNavigateEvidence(evidence)}
-                className="flex min-h-9 items-start gap-2 border border-neutral-200 px-2 py-2 text-left text-xs hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+                className="flex min-h-9 items-start gap-2 border border-neutral-200 px-2 py-2 text-left text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:border-neutral-800 dark:hover:bg-neutral-900"
               >
                 <LocateFixed aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
                 <span>
-                  <strong className="block">{sourceLabel(evidence, resolver)}</strong>
+                  <strong className="block">Show evidence · {sourceLabel(evidence, resolver)}</strong>
                   <span className="line-clamp-2">{resolved?.status === "resolved" ? resolved.excerpt : evidence.source.text ?? evidence.reason}</span>
                   <span className="block text-neutral-500">{evidence.reason}</span>
                 </span>
