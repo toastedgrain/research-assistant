@@ -3,19 +3,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { blobUrl, digestOf, loadManifest, pdfUrl } from "../lib/api";
 import { findCitations, type Citation } from "../lib/citations";
-import { buildReverseIndex, findMentions, type Mention } from "../lib/mentions";
+import { evidenceTarget } from "../lib/evidence/navigation";
+import { createEvidenceResolver } from "../lib/evidence/resource";
+import { getPaperLearningIndex } from "../lib/learning/paper-index";
+import { buildConceptThread } from "../lib/learning/threads";
+import type { ConceptThread } from "../lib/learning/types";
+import { buildReverseIndex, findMentions, type Mention, type PageTextItem } from "../lib/mentions";
 import type { Manifest } from "../lib/manifest";
 import { loadPdf, pageTextItems, type PDFDocumentProxy } from "../lib/pdf";
+import { buildResearchContext } from "../lib/research-context/context";
+import type { ResearchContext } from "../lib/research-context/types";
+import { paperIdOf, type SourceEvidence } from "../lib/evidence/source";
+import type { CapturedSelection } from "../lib/selection/dom";
 import OverlayCard, { type CardState } from "./OverlayCard";
 import PdfPageView from "./PdfPageView";
+import SelectionActionPanel from "./selection/SelectionActionPanel";
+import ReaderLearningLayer from "./learning/ReaderLearningLayer";
 
 const PAGE_WIDTH = 760;
 /** Render the visible page plus one either side: a 40-page paper must not allocate 40 canvases. */
 const RENDER_WINDOW = 1;
 
 interface PageAnalysis {
+  items: PageTextItem[];
   mentions: Mention[];
   citations: Citation[];
+}
+
+interface ReaderSelection extends CapturedSelection {
+  menuOpen: boolean;
+}
+
+interface SelectionPanelState {
+  mode: "context" | "thread";
+  context: ResearchContext;
+  thread?: ConceptThread;
 }
 
 export default function Reader({ digest }: { digest: string }) {
@@ -32,6 +54,9 @@ export default function Reader({ digest }: { digest: string }) {
   const [autoDock, setAutoDock] = useState(true);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [split, setSplit] = useState<{ digest: string; title: string } | null>(null);
+  const [selection, setSelection] = useState<ReaderSelection | null>(null);
+  const [selectionPanel, setSelectionPanel] = useState<SelectionPanelState | null>(null);
+  const [activeEvidence, setActiveEvidence] = useState<SourceEvidence | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -53,6 +78,7 @@ export default function Reader({ digest }: { digest: string }) {
           const page = await pdf.getPage(index + 1);
           const items = await pageTextItems(page);
           perPage.push({
+            items,
             mentions: findMentions(items, { page: index, assets: loaded.assets }),
             citations: findCitations(items, { references: loaded.references }),
           });
@@ -77,6 +103,21 @@ export default function Reader({ digest }: { digest: string }) {
     [analysis],
   );
 
+  const learningIndex = useMemo(
+    () => (manifest && analysis.length === manifest.page_count ? getPaperLearningIndex(manifest, analysis) : null),
+    [analysis, manifest],
+  );
+
+  const evidenceResolver = useMemo(
+    () => (learningIndex ? createEvidenceResolver([learningIndex]) : null),
+    [learningIndex],
+  );
+
+  const researchContext = useMemo(() => {
+    if (!manifest || !selection) return null;
+    return buildResearchContext({ manifest, selection: selection.context, pages: analysis, ...(learningIndex ? { index: learningIndex } : {}) });
+  }, [analysis, learningIndex, manifest, selection]);
+
   const openCard = useCallback((assetId: string, hard: boolean) => {
     setCards((previous) => {
       const existing = previous.find((card) => card.assetId === assetId);
@@ -100,8 +141,49 @@ export default function Reader({ digest }: { digest: string }) {
 
   const scrollToPage = useCallback((page: number) => {
     const node = scrollRef.current?.querySelector(`[data-page="${page}"]`);
-    node?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    node?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }, []);
+
+  const focusPaperSelection = useCallback(() => {
+    const page = selection?.context.page ?? currentPage;
+    scrollToPage(page);
+    window.requestAnimationFrame(() => {
+      const root = scrollRef.current?.querySelector<HTMLElement>(`[data-page="${page}"] .pdf-text-layer`);
+      root?.focus();
+    });
+  }, [currentPage, scrollToPage, selection]);
+
+  const navigateToEvidence = useCallback(
+    (evidence: SourceEvidence) => {
+      if (!manifest) return;
+      const target = evidenceTarget(evidence, { [paperIdOf(manifest)]: manifest.page_count });
+      if (!target || target.paperId !== paperIdOf(manifest)) return;
+      setActiveEvidence(evidence);
+      scrollToPage(target.page);
+      if (target.assetId && assetsById.has(target.assetId)) openCard(target.assetId, true);
+    },
+    [assetsById, manifest, openCard, scrollToPage],
+  );
+
+  const openSelectionContext = useCallback(() => {
+    if (!researchContext) return;
+    setSelectionPanel({ mode: "context", context: researchContext });
+    setSelection((current) => (current ? { ...current, menuOpen: false } : null));
+  }, [researchContext]);
+
+  const openConceptThread = useCallback(() => {
+    if (!manifest || !researchContext || !selection) return;
+    const thread = buildConceptThread({
+      paperId: manifest.doc_id,
+      concept: selection.context.text,
+      pages: analysis,
+      sections: manifest.sections,
+      assets: manifest.assets,
+    });
+    setSelectionPanel({ mode: "thread", context: researchContext, thread });
+    setSelection((current) => (current ? { ...current, menuOpen: false } : null));
+  }, [analysis, manifest, researchContext, selection]);
 
   const openCitation = useCallback(
     async (citation: Citation) => {
@@ -158,10 +240,21 @@ export default function Reader({ digest }: { digest: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement) return;
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement ||
+        (event.target instanceof HTMLElement && event.target.isContentEditable)
+      ) {
+        return;
+      }
 
       if (event.key === "Escape") {
-        if (expanded) setExpanded(null);
+        if (selection?.menuOpen) {
+          setSelection((current) => (current ? { ...current, menuOpen: false } : null));
+        } else if (selectionPanel) setSelectionPanel(null);
+        else if (activeEvidence) setActiveEvidence(null);
+        else if (expanded) setExpanded(null);
         else if (split) setSplit(null);
         else if (focused) closeCard(focused);
         return;
@@ -196,13 +289,13 @@ export default function Reader({ digest }: { digest: string }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [analysis, cards, closeCard, currentPage, expanded, focused, openCard, reverseIndex, scrollToPage, split]);
+  }, [activeEvidence, analysis, cards, closeCard, currentPage, expanded, focused, openCard, reverseIndex, scrollToPage, selection, selectionPanel, split]);
 
   if (error) {
     return <p className="p-8 text-red-600">Could not open this paper: {error}</p>;
   }
   if (!manifest || !doc) {
-    return <p className="p-8 opacity-60">Loading paper…</p>;
+    return <p className="p-8 opacity-60">Loading paperâ€¦</p>;
   }
 
   const expandedAsset = expanded ? assetsById.get(expanded) : null;
@@ -216,7 +309,7 @@ export default function Reader({ digest }: { digest: string }) {
           className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
           title="Toggle outline (\\)"
         >
-          ☰
+          â˜°
         </button>
         <h1 className="flex-1 truncate text-sm font-medium">{manifest.title || "Untitled paper"}</h1>
         <span className="text-xs opacity-60">
@@ -231,7 +324,7 @@ export default function Reader({ digest }: { digest: string }) {
           onClick={() => setDark((on) => !on)}
           className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
         >
-          {dark ? "☀" : "☾"}
+          {dark ? "â˜€" : "â˜¾"}
         </button>
       </header>
 
@@ -267,7 +360,15 @@ export default function Reader({ digest }: { digest: string }) {
           </nav>
         )}
 
-        <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto p-6">
+        <div
+          ref={scrollRef}
+          className="min-w-0 flex-1 overflow-y-auto p-6"
+          onScroll={() =>
+            setSelection((current) =>
+              current?.menuOpen ? { ...current, menuOpen: false } : current,
+            )
+          }
+        >
           {Array.from({ length: manifest.page_count }, (_, index) => (
             <PdfPageView
               key={index}
@@ -278,9 +379,16 @@ export default function Reader({ digest }: { digest: string }) {
               dark={dark}
               mentions={analysis[index]?.mentions ?? []}
               citations={analysis[index]?.citations ?? []}
+              textItems={analysis[index]?.items ?? []}
               onOpenAsset={(assetId) => openCard(assetId, true)}
               onOpenCitation={openCitation}
+              onTextSelection={(captured) => {
+                setSelection({ ...captured, menuOpen: true });
+                setSelectionPanel(null);
+                setActiveEvidence(null);
+              }}
               highlightedAssetId={focused}
+              evidenceBBox={activeEvidence?.page === index ? activeEvidence.bbox : undefined}
             />
           ))}
         </div>
@@ -290,17 +398,45 @@ export default function Reader({ digest }: { digest: string }) {
             <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
               <span className="flex-1 truncate text-sm">{split.title}</span>
               <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
-                ×
+                Ã—
               </button>
             </div>
             {split.digest ? (
               <iframe title={split.title} src={pdfUrl(split.digest)} className="flex-1" />
             ) : (
-              <p className="p-4 text-sm opacity-60">Fetching the cited paper…</p>
+              <p className="p-4 text-sm opacity-60">Fetching the cited paperâ€¦</p>
             )}
           </aside>
         )}
       </div>
+
+      {selectionPanel && (
+        <SelectionActionPanel
+          mode={selectionPanel.mode}
+          context={selectionPanel.context}
+          thread={selectionPanel.thread}
+          onNavigateEvidence={navigateToEvidence}
+          onOpenAsset={(assetId) => openCard(assetId, true)}
+          onClose={() => setSelectionPanel(null)}
+        />
+      )}
+
+      <ReaderLearningLayer
+        selection={selection}
+        context={researchContext}
+        index={learningIndex}
+        resolver={evidenceResolver}
+        onSelectionMenuOpenChange={(open) => setSelection((current) => (current ? { ...current, menuOpen: open } : null))}
+        onOpenContext={openSelectionContext}
+        onOpenTrace={openConceptThread}
+        onCopy={() => {
+          if (selection) void navigator.clipboard?.writeText(selection.context.text);
+          setSelection((current) => (current ? { ...current, menuOpen: false } : null));
+        }}
+        onNavigateEvidence={(evidence) => navigateToEvidence(evidence.source)}
+        onFocusPaper={focusPaperSelection}
+        onRestorePaperPage={scrollToPage}
+      />
 
       {cards.map((card, index) => {
         const asset = assetsById.get(card.assetId);

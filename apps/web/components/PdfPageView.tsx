@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PDFDocumentProxy } from "../lib/pdf";
+import { mountTextLayer, type MountedTextLayer, type PDFDocumentProxy } from "../lib/pdf";
 import type { Citation } from "../lib/citations";
-import type { Mention } from "../lib/mentions";
+import type { BBox, Mention, PageTextItem } from "../lib/mentions";
+import { captureSelection, type CapturedSelection } from "../lib/selection/dom";
+import { shouldCaptureKeyboardSelection } from "../lib/selection/keyboard";
 
 interface Props {
   doc: PDFDocumentProxy;
@@ -14,9 +16,12 @@ interface Props {
   dark: boolean;
   mentions: Mention[];
   citations: Citation[];
+  textItems: PageTextItem[];
   onOpenAsset: (assetId: string) => void;
   onOpenCitation: (citation: Citation) => void;
+  onTextSelection: (selection: CapturedSelection) => void;
   highlightedAssetId: string | null;
+  evidenceBBox?: BBox;
 }
 
 /**
@@ -34,27 +39,41 @@ export default function PdfPageView({
   dark,
   mentions,
   citations,
+  textItems,
   onOpenAsset,
   onOpenCitation,
+  onTextSelection,
   highlightedAssetId,
+  evidenceBBox,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const textLayerRef = useRef<HTMLDivElement | null>(null);
   const [height, setHeight] = useState(width * 1.294); // letter aspect until measured
 
   useEffect(() => {
     let cancelled = false;
     let task: { cancel: () => void } | null = null;
+    let textLayer: MountedTextLayer | null = null;
 
     (async () => {
       const page = await doc.getPage(pageIndex + 1);
       const base = page.getViewport({ scale: 1 });
       const scale = width / base.width;
+      const textViewport = page.getViewport({ scale });
       const viewport = page.getViewport({ scale: scale * (window.devicePixelRatio || 1) });
       if (cancelled) return;
 
       setHeight(base.height * scale);
       const canvas = canvasRef.current;
       if (!canvas || !active) return;
+
+      const textContainer = textLayerRef.current;
+      if (textContainer) {
+        textContainer.replaceChildren();
+        textContainer.style.setProperty("--scale-factor", String(scale));
+        textLayer = await mountTextLayer(page, textContainer, textViewport);
+        if (cancelled) return;
+      }
 
       canvas.width = viewport.width;
       canvas.height = viewport.height;
@@ -71,11 +90,27 @@ export default function PdfPageView({
       }
     })();
 
-    return () => {
+    const captureCurrentSelection = () => {
+    const root = textLayerRef.current;
+    if (!root) return;
+    const selection = captureSelection(root, pageIndex, textItems);
+    if (selection) onTextSelection(selection);
+  };
+
+  return () => {
       cancelled = true;
       task?.cancel?.();
+      textLayer?.cancel();
+      textLayerRef.current?.replaceChildren();
     };
   }, [doc, pageIndex, width, active]);
+
+  const captureCurrentSelection = () => {
+    const root = textLayerRef.current;
+    if (!root) return;
+    const selection = captureSelection(root, pageIndex, textItems);
+    if (selection) onTextSelection(selection);
+  };
 
   return (
     <div
@@ -91,6 +126,33 @@ export default function PdfPageView({
         style={{ filter: dark ? "invert(1) hue-rotate(180deg)" : undefined }}
       />
 
+      <div
+        ref={textLayerRef}
+        className="pdf-text-layer"
+        tabIndex={0}
+        role="document"
+        aria-label={`Page ${pageIndex + 1} text`}
+        onMouseUp={captureCurrentSelection}
+        onKeyUp={(event) => {
+          if (shouldCaptureKeyboardSelection(event.key, event.shiftKey)) {
+            captureCurrentSelection();
+          }
+        }}
+      />
+
+      {evidenceBBox && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute z-20 border-2 border-amber-500 bg-amber-300/20 shadow-[0_0_0_2px_rgba(255,255,255,0.65)]"
+          style={{
+            left: `${evidenceBBox[0] * 100}%`,
+            top: `${evidenceBBox[1] * 100}%`,
+            width: `${(evidenceBBox[2] - evidenceBBox[0]) * 100}%`,
+            height: `${(evidenceBBox[3] - evidenceBBox[1]) * 100}%`,
+          }}
+        />
+      )}
+
       {mentions
         .filter((mention) => mention.assetId !== null && mention.rect !== null)
         .map((mention, i) => (
@@ -99,7 +161,7 @@ export default function PdfPageView({
             type="button"
             title={`Open ${mention.text}`}
             onClick={() => onOpenAsset(mention.assetId as string)}
-            className={`absolute cursor-pointer border-b-2 transition-colors ${
+            className={`absolute z-30 cursor-pointer border-b-2 transition-colors ${
               highlightedAssetId === mention.assetId
                 ? "border-amber-500 bg-amber-300/25"
                 : "border-sky-500/60 hover:bg-sky-400/20"
@@ -121,7 +183,7 @@ export default function PdfPageView({
             type="button"
             title={`Open ${citation.text} side by side`}
             onClick={() => onOpenCitation(citation)}
-            className="absolute cursor-pointer border-b-2 border-violet-500/60 hover:bg-violet-400/20"
+            className="absolute z-30 cursor-pointer border-b-2 border-violet-500/60 hover:bg-violet-400/20"
             style={{
               left: `${citation.rect![0] * 100}%`,
               top: `${citation.rect![1] * 100}%`,

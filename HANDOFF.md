@@ -16,6 +16,102 @@ Two other documents own decisions:
 
 ---
 
+## Dev A expansion checkpoints
+
+### DEV A PHASE CHECKPOINT
+
+Phase: 2 - Learning / challenge foundation
+Dev A implementation commit: `db1fdc54a77e981d29be07b56b58917bcfb225d9`
+Dev A Phase 2 completion commit: `69bf2ff36a3dc2ca1001aa4cf8032f1414393bc6`
+Branch: `phase-1-a`
+Tests: 76 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Known limitations: no browser surface is available in this CLI environment, so a manual real-paper walkthrough is unmeasured. The substitute verification is the deterministic source-resolution, evaluator, renderer, return-state, keyboard-entry, TypeScript, Python, and production-build checks listed above; it does not claim visual confirmation.
+
+---
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 2 completion SHA: `69bf2ff36a3dc2ca1001aa4cf8032f1414393bc6`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Main work included: Dev B citation graph and cross-paper provider, pinboard/workspace, collection research views, reflow/accessibility controls, and literal author/method networks.
+Integration commit SHA: `4bf44860ec8e5371f79a56547b81a06786b3f2f2`
+Conflicts: none.
+Resolution: automatic merge preserved both Dev A learning files and Dev B exploration/accessibility files.
+Tests after merge: 167 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: Dev A must consume `CrossPaperContextProvider` through `lib/explore/cross-paper-provider.ts` without importing Dev B UI, and should use the existing workspace persistence boundary rather than create a competing store.
+
+---
+
+### DEV A PHASE CHECKPOINT
+
+Phase: 3 - Learning engine, Learn/Quest modes, and major games
+Dev A checkpoint SHA: `848a7aa14e1f4d32d0259dcdcfe5497949d0d498`
+Branch: `phase-1-a`
+Features completed: deterministic learning objects, relative difficulty regions, source-derived/suggested prerequisite distinction, controlled MiniDiagram data, shared `LearningContextProvider`, Learn and Quest overlays, source-grounded Quick Quiz/Concept Match/Ordering/Figure Build/Figure Detective/Claim vs Evidence/Paper Check, unscored Predict Before Reveal, and Paper Quest checkpoints.
+Tests: 176 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Limitations: progress is session-local until an agreed cross-team progress persistence contract exists; no browser surface is available in this CLI environment for visual walkthroughs.
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 3 SHA: `848a7aa14e1f4d32d0259dcdcfe5497949d0d498`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Latest main changes since the prior snapshot: none.
+Integration commit SHA: `6c9df164ca6a76439bc63611e7424fec09a1ec05`
+Conflicts: none; the frozen SHA was already an ancestor.
+Resolution: no merge delta; empty checkpoint records the exact inspected snapshot after the Phase 3 gate.
+Tests after checkpoint: 176 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: Phase 4 must use Dev B's `CrossPaperContextProvider` only; it must not import exploration/workspace UI or introduce a second cross-paper graph.
+
+---
+
+### DEV A PHASE CHECKPOINT
+
+Phase: 4 - Cross-paper learning
+Dev A checkpoint SHA: `1dbfd20684e84fc89f7a5eb76d89b2d2df62909b`
+Branch: `phase-1-a`
+Features completed: provider-only Paper vs Paper and cross-paper concept quest, verified chronology ordering, supplied evolution ordering, and a reusable CrossPaperQuest renderer. Direct asset/caption evidence is required for scored two-paper relationships; generated evolution proposals are visibly Explore-only.
+Tests: 181 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Limitations: no comparison is rendered until both paper data and an evidence resolver are available. Timeline facts come from Dev B’s verified timeline data; chronology is not presented as influence.
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 4 SHA: `1dbfd20684e84fc89f7a5eb76d89b2d2df62909b`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Latest main changes since the prior snapshot: none.
+Integration commit SHA: `a9cf10bc62499cdc0c75eae6e9e85aebaab28551`
+Conflicts: none; the frozen SHA was already an ancestor.
+Resolution: no merge delta; empty checkpoint records the exact inspected snapshot after the Phase 4 gate.
+Tests after checkpoint: 181 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: Cross-paper game factories depend only on `CrossPaperContextProvider` and Dev B timeline data types; do not route them through an exploration component or infer semantic evolution.
+
+---
+
+### DEV A PHASE CHECKPOINT
+
+Phase: 5 - Learning interaction hardening
+Dev A checkpoint SHA: `a15d1f0dd8bf7df73751aaaa6de649ebab5a9ee4`
+Branch: `phase-1-a`
+Features completed: explicit Show Evidence controls on scored games; focus-visible learning controls; keyboard button paths for matching and ordering; Escape behavior and focus restoration for learning overlays; viewport-safe selection actions; compact narrow-screen overlays; reduced-motion-safe instant source navigation; and session-local mastery/progress display.
+Tests: 182 web tests passed; 151 Python tests passed.
+Build: TypeScript typecheck and production web build passed.
+Limitations: no browser surface is available in this CLI environment for visual/screen-reader walkthroughs. Learning progress remains session-local because no cross-team progress persistence repository contract has been agreed; no competing storage was introduced.
+
+### FROZEN MAIN INTEGRATION
+
+Dev A Phase 5 SHA: `a15d1f0dd8bf7df73751aaaa6de649ebab5a9ee4`
+Frozen main SHA: `4c9a9fb930bc8c625333566e402b1222c2b1fbcd`
+Latest main changes since the prior snapshot: none.
+Integration commit SHA: `d3cc514ba835c724f199be786bb51883247308a1`
+Conflicts: none; the frozen SHA was already an ancestor.
+Resolution: no merge delta; empty checkpoint records the exact inspected snapshot after the Phase 5 gate.
+Tests after checkpoint: 182 web tests passed; 151 Python tests passed; TypeScript typecheck and production web build passed.
+Known coordination points: no general Dev B accessibility or workspace persistence system was changed. The completed branch is ready for final merge after verifying `main` remains at the frozen SHA.
+
+---
+
 ## What this is, in one paragraph
 
 A PDF reader for arXiv AI/ML papers. A sentence on page 3 says "as shown in Figure 1";
@@ -43,7 +139,7 @@ is off by default and labelled. Justify any new LLM call against §2 before addi
 | 7 | Keyboard, zoom, dark mode, auto-dock | done |
 | 8 | Accuracy harness | done |
 
-**186 tests pass** — 151 Python, 35 TypeScript. Everything was written test-first.
+**333 tests pass** — 151 Python, 182 TypeScript. Everything was written test-first.
 Typecheck and production build are clean.
 
 ---
