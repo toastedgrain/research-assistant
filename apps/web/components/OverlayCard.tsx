@@ -1,16 +1,67 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { blobUrl } from "../lib/api";
 import type { Asset } from "../lib/manifest";
 import type { Mention } from "../lib/mentions";
 
+const RAIL_GAP = 12;
+const RAIL_EDGE = 16;
+
+export interface RailAnchor {
+  cardId: string;
+  anchorY: number;
+  height: number;
+}
+
+export function cancelRailFrame(
+  frame: { current: number | null },
+  cancel: (handle: number) => void,
+): void {
+  if (frame.current === null) return;
+  cancel(frame.current);
+  frame.current = null;
+}
+
+export function layoutRail(cards: RailAnchor[], railHeight: number): Map<string, number> {
+  const sorted = [...cards].sort((a, b) => a.anchorY - b.anchorY);
+  const positions = new Map<string, number>();
+
+  let previousBottom = RAIL_EDGE;
+  for (const card of sorted) {
+    const desired = card.anchorY - card.height / 2;
+    const y = Math.max(desired, previousBottom);
+    positions.set(card.cardId, y);
+    previousBottom = y + card.height + RAIL_GAP;
+  }
+
+  const overflow = previousBottom - RAIL_GAP - (railHeight - RAIL_EDGE);
+  if (overflow > 0) {
+    let nextTop = railHeight - RAIL_EDGE;
+    for (let index = sorted.length - 1; index >= 0; index -= 1) {
+      const card = sorted[index];
+      const y = Math.min(positions.get(card.cardId)!, nextTop - card.height);
+      positions.set(card.cardId, y);
+      nextTop = y - RAIL_GAP;
+    }
+  }
+
+  return positions;
+}
+
 export interface CardState {
   assetId: string;
-  x: number;
-  y: number;
-  /** Soft pins are replaced by the next auto-dock; hard pins persist until dismissed. */
+  anchorMentionId: string | null;
+  /** Soft pins are replaced first; hard pins persist until dismissed or the four-card cap. */
   hard: boolean;
+  order: number;
+}
+
+export function capRailCards(cards: CardState[], maximum: number): CardState[] {
+  if (cards.length <= maximum) return cards;
+  const oldestSoft = cards.filter((card) => !card.hard).sort((a, b) => a.order - b.order)[0];
+  const evicted = oldestSoft ?? [...cards].sort((a, b) => a.order - b.order)[0];
+  return capRailCards(cards.filter((card) => card !== evicted), maximum);
 }
 
 interface Props {
@@ -19,131 +70,129 @@ interface Props {
   mentions: Mention[];
   currentPage: number;
   focused: boolean;
-  ordinal: number;
-  onMove: (x: number, y: number) => void;
+  reciprocal: boolean;
+  anchorVisible: boolean;
+  positioned: boolean;
+  y: number;
+  scrollDriven: boolean;
+  variant?: "rail" | "sheet";
+  compact?: boolean;
   onClose: () => void;
   onFocus: () => void;
+  onHoverChange: (hovered: boolean) => void;
   onJumpToMention: (mention: Mention) => void;
   onExpand: () => void;
 }
 
-/**
- * A draggable, translucent card floating over the PDF.
- *
- * This replaces spec section 8's dock rail (plan deviation 1), but keeps its central
- * argument: the card *stays* while the reader keeps scrolling. A popup that vanishes on
- * mouse-out reproduces the exact problem the tool exists to solve.
- */
 export default function OverlayCard({
   asset,
   card,
   mentions,
   currentPage,
   focused,
-  ordinal,
-  onMove,
+  reciprocal,
+  anchorVisible,
+  positioned,
+  y,
+  scrollDriven,
+  variant = "rail",
+  compact = false,
   onClose,
   onFocus,
+  onHoverChange,
   onJumpToMention,
   onExpand,
 }: Props) {
-  const dragOffset = useRef<{ x: number; y: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [closing, setClosing] = useState(false);
 
-  const onPointerDown = useCallback(
-    (event: React.PointerEvent) => {
-      onFocus();
-      dragOffset.current = { x: event.clientX - card.x, y: event.clientY - card.y };
-      setDragging(true);
-      (event.target as HTMLElement).setPointerCapture(event.pointerId);
-    },
-    [card.x, card.y, onFocus],
-  );
-
-  const onPointerMove = useCallback(
-    (event: React.PointerEvent) => {
-      if (!dragOffset.current) return;
-      onMove(
-        Math.max(0, event.clientX - dragOffset.current.x),
-        Math.max(0, event.clientY - dragOffset.current.y),
-      );
-    },
-    [onMove],
-  );
-
-  const endDrag = useCallback(() => {
-    dragOffset.current = null;
-    setDragging(false);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setEntered(true));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  const dismiss = () => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      onClose();
+      return;
+    }
+    setClosing(true);
+    window.setTimeout(onClose, 120);
+  };
+
+  const isRail = variant === "rail";
+  const translatedY = y + (entered ? 0 : 8);
+
   return (
-    <div
-      className={`fixed z-40 w-80 rounded-lg border shadow-2xl backdrop-blur-md transition-shadow ${
-        focused
-          ? "border-sky-400 bg-white/95 dark:bg-neutral-900/95"
-          : "border-neutral-300/70 bg-white/85 dark:border-neutral-700/70 dark:bg-neutral-900/85"
-      }`}
-      style={{ left: card.x, top: card.y }}
-      onMouseDown={onFocus}
+    <article
+      data-rail-card={asset.asset_id}
+      tabIndex={0}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => {
+        onFocus();
+        onHoverChange(true);
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) onHoverChange(false);
+      }}
+      className={`group overflow-hidden rounded-md border bg-neutral-50 outline-none dark:bg-neutral-900 ${
+        focused || reciprocal
+          ? "border-sky-500"
+          : "border-neutral-900/10 dark:border-white/10"
+      } ${
+        scrollDriven
+          ? "transition-none"
+          : "transition-[transform,opacity,border-color] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-opacity"
+      } ${isRail ? "absolute inset-x-0" : "relative w-full"}`}
+      style={{
+        transform: isRail
+          ? `translateY(${translatedY}px)${closing ? " scale(0.98)" : ""}`
+          : closing
+            ? "scale(0.98)"
+            : undefined,
+        opacity: closing || !positioned ? 0 : entered ? (anchorVisible ? 1 : 0.55) : 0,
+      }}
     >
-      <header
-        className={`flex items-center gap-2 rounded-t-lg border-b border-neutral-200/60 px-3 py-1.5 dark:border-neutral-700/60 ${
-          dragging ? "cursor-grabbing" : "cursor-grab"
-        }`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        <span className="rounded bg-neutral-200 px-1.5 text-xs font-mono text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
-          {ordinal}
+      <header className="flex items-center gap-2 border-b border-neutral-900/10 px-3 py-2 dark:border-white/10">
+        <span className="flex-1 truncate text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+          {asset.label}
         </span>
-        <span className="flex-1 truncate text-sm font-medium">{asset.label}</span>
-        {card.hard ? null : (
-          <span title="auto-docked; click a mention to pin" className="text-xs opacity-50">
-            auto
-          </span>
-        )}
+        {!card.hard && <span className="text-[11px] text-neutral-400">auto</span>}
         <button
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
           aria-label={`Close ${asset.label}`}
-          className="rounded px-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+          className="rounded px-1 text-neutral-500 hover:bg-neutral-200 focus-visible:outline-2 focus-visible:outline-sky-500 dark:hover:bg-neutral-800"
         >
           ×
         </button>
       </header>
 
-      <button type="button" onClick={onExpand} className="block w-full" title="Click to enlarge">
-        {/* Never inverted in dark mode, unlike the page canvas. */}
+      <button type="button" onClick={onExpand} className="block w-full bg-white p-1" title="Enlarge figure">
         <img
           src={blobUrl(asset.image_url)}
           alt={asset.caption}
-          className="max-h-64 w-full bg-white object-contain"
+          className={`${compact ? "max-h-24" : "max-h-80"} w-full bg-white object-contain`}
         />
       </button>
 
-      <p className="max-h-24 overflow-y-auto px-3 py-2 text-xs leading-snug text-neutral-700 dark:text-neutral-300">
-        {asset.caption}
-      </p>
+      <details className={`${compact ? "hidden" : "block"} border-t border-neutral-900/10 px-3 py-2 text-[13px] leading-[1.5] text-neutral-700 dark:border-white/10 dark:text-neutral-300`}>
+        <summary className="line-clamp-3 cursor-pointer list-none">{asset.caption}</summary>
+        <p className="pt-2">{asset.caption}</p>
+      </details>
 
-      {/*
-        Reverse links. Spec section 8 calls these a headline feature rather than a
-        detail: they are what makes a figure legible when it is discussed in three
-        separate places, and nobody else does it.
-      */}
       {mentions.length > 0 && (
-        <footer className="flex flex-wrap items-center gap-1 border-t border-neutral-200/60 px-3 py-1.5 text-xs dark:border-neutral-700/60">
-          <span className="mr-1 opacity-60">referenced from</span>
-          {mentions.map((mention, i) => (
+        <footer className="flex flex-wrap items-center gap-1 border-t border-neutral-900/10 px-3 py-2 text-xs dark:border-white/10">
+          {mentions.map((mention) => (
             <button
-              key={i}
+              key={`${mention.page}-${mention.index}`}
               type="button"
               onClick={() => onJumpToMention(mention)}
-              className={`rounded px-1.5 py-0.5 font-mono ${
+              className={`rounded px-2 py-1 font-mono focus-visible:outline-2 focus-visible:outline-sky-500 ${
                 mention.page === currentPage
-                  ? "bg-amber-400/70 text-neutral-900"
-                  : "bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600"
+                  ? "bg-sky-500 text-white"
+                  : "text-neutral-500 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-800"
               }`}
             >
               p.{mention.page + 1}
@@ -151,6 +200,6 @@ export default function OverlayCard({
           ))}
         </footer>
       )}
-    </div>
+    </article>
   );
 }

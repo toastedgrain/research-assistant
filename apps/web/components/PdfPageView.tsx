@@ -17,10 +17,12 @@ interface Props {
   mentions: Mention[];
   citations: Citation[];
   textItems: PageTextItem[];
-  onOpenAsset: (assetId: string) => void;
+  onOpenAsset: (assetId: string, mentionId: string) => void;
+  onMentionCue: (assetId: string | null) => void;
   onOpenCitation: (citation: Citation) => void;
   onTextSelection: (selection: CapturedSelection) => void;
   highlightedAssetId: string | null;
+  cueAssetId: string | null;
   evidenceBBox?: BBox;
 }
 
@@ -41,9 +43,11 @@ export default function PdfPageView({
   citations,
   textItems,
   onOpenAsset,
+  onMentionCue,
   onOpenCitation,
   onTextSelection,
   highlightedAssetId,
+  cueAssetId,
   evidenceBBox,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -158,13 +162,24 @@ export default function PdfPageView({
         .map((mention, i) => (
           <button
             key={`m-${i}`}
+            data-mention-asset={mention.assetId as string}
+            data-mention-id={`${mention.assetId}:p${pageIndex}:m${mention.index}`}
             type="button"
             title={`Open ${mention.text}`}
-            onClick={() => onOpenAsset(mention.assetId as string)}
-            className={`absolute z-30 cursor-pointer border-b-2 transition-colors ${
-              highlightedAssetId === mention.assetId
-                ? "border-amber-500 bg-amber-300/25"
-                : "border-sky-500/60 hover:bg-sky-400/20"
+            onClick={() =>
+              onOpenAsset(
+                mention.assetId as string,
+                `${mention.assetId}:p${pageIndex}:m${mention.index}`,
+              )
+            }
+            onMouseEnter={() => onMentionCue(mention.assetId)}
+            onMouseLeave={() => onMentionCue(null)}
+            onFocus={() => onMentionCue(mention.assetId)}
+            onBlur={() => onMentionCue(null)}
+            className={`absolute z-30 cursor-pointer border-b transition-colors ${
+              highlightedAssetId === mention.assetId || cueAssetId === mention.assetId
+                ? "border-solid border-sky-500 bg-sky-500/10"
+                : "border-dotted border-sky-500/40 hover:border-solid hover:border-sky-500"
             }`}
             style={{
               left: `${mention.rect![0] * 100}%`,

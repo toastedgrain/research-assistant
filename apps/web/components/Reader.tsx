@@ -15,12 +15,20 @@ import { buildResearchContext } from "../lib/research-context/context";
 import type { ResearchContext } from "../lib/research-context/types";
 import { paperIdOf, type SourceEvidence } from "../lib/evidence/source";
 import type { CapturedSelection } from "../lib/selection/dom";
-import OverlayCard, { type CardState } from "./OverlayCard";
+import OverlayCard, {
+  capRailCards,
+  cancelRailFrame,
+  layoutRail,
+  type CardState,
+  type RailAnchor,
+} from "./OverlayCard";
 import PdfPageView from "./PdfPageView";
 import SelectionActionPanel from "./selection/SelectionActionPanel";
 import ReaderLearningLayer from "./learning/ReaderLearningLayer";
 
-const PAGE_WIDTH = 760;
+const MAX_PAGE_WIDTH = 760;
+const MIN_PAGE_WIDTH = 560;
+const MAX_PINNED_CARDS = 4;
 /** Render the visible page plus one either side: a 40-page paper must not allocate 40 canvases. */
 const RENDER_WINDOW = 1;
 
@@ -48,6 +56,13 @@ export default function Reader({ digest }: { digest: string }) {
 
   const [currentPage, setCurrentPage] = useState(0);
   const [cards, setCards] = useState<CardState[]>([]);
+  const [railPositions, setRailPositions] = useState<Record<string, number>>({});
+  const [anchorVisibility, setAnchorVisibility] = useState<Record<string, boolean>>({});
+  const [scrollDrivenLayout, setScrollDrivenLayout] = useState(false);
+  const [cueAsset, setCueAsset] = useState<string | null>(null);
+  const [hairlinePath, setHairlinePath] = useState<string | null>(null);
+  const [sheetAsset, setSheetAsset] = useState<string | null>(null);
+  const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
   const [focused, setFocused] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
@@ -59,6 +74,10 @@ export default function Reader({ digest }: { digest: string }) {
   const [activeEvidence, setActiveEvidence] = useState<SourceEvidence | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLElement | null>(null);
+  const railFrameRef = useRef<number | null>(null);
+  const railPositionsRef = useRef<Record<string, number>>({});
+  const cardOrderRef = useRef(0);
 
   // Load the manifest and the PDF, then analyse every page's text once. The reverse
   // index has to exist before the first click, and scanning text (without rendering) is
@@ -118,18 +137,31 @@ export default function Reader({ digest }: { digest: string }) {
     return buildResearchContext({ manifest, selection: selection.context, pages: analysis, ...(learningIndex ? { index: learningIndex } : {}) });
   }, [analysis, learningIndex, manifest, selection]);
 
-  const openCard = useCallback((assetId: string, hard: boolean) => {
+  const openCard = useCallback((assetId: string, hard: boolean, anchorMentionId: string | null = null) => {
     setCards((previous) => {
       const existing = previous.find((card) => card.assetId === assetId);
       if (existing) {
-        // Re-opening an auto-docked card promotes it to a hard pin.
         return previous.map((card) =>
-          card.assetId === assetId ? { ...card, hard: card.hard || hard } : card,
+          card.assetId === assetId
+            ? {
+                ...card,
+                hard: card.hard || hard,
+                anchorMentionId: anchorMentionId ?? card.anchorMentionId,
+              }
+            : card,
         );
       }
       const kept = hard ? previous : previous.filter((card) => card.hard);
-      const offset = kept.length * 28;
-      return [...kept, { assetId, x: 40 + offset, y: 110 + offset, hard }];
+      const next = [
+        ...kept,
+        {
+          assetId,
+          anchorMentionId,
+          hard,
+          order: cardOrderRef.current++,
+        },
+      ];
+      return capRailCards(next, MAX_PINNED_CARDS);
     });
     setFocused(assetId);
   }, []);
@@ -138,6 +170,124 @@ export default function Reader({ digest }: { digest: string }) {
     setCards((previous) => previous.filter((card) => card.assetId !== assetId));
     setFocused((current) => (current === assetId ? null : current));
   }, []);
+
+  const measureRail = useCallback(
+    (fromScroll: boolean) => {
+      railFrameRef.current = null;
+      const rail = railRef.current;
+      const scroll = scrollRef.current;
+      if (!rail || !scroll) return;
+
+      const railRect = rail.getBoundingClientRect();
+      const scrollRect = scroll.getBoundingClientRect();
+      const previousPositions = railPositionsRef.current;
+      const reads = cards.map((card) => {
+        const cardNode = rail.querySelector<HTMLElement>(
+          `[data-rail-card="${CSS.escape(card.assetId)}"]`,
+        );
+        const candidates = Array.from(
+          scroll.querySelectorAll<HTMLElement>(
+            `[data-mention-asset="${CSS.escape(card.assetId)}"]`,
+          ),
+        ).map((node) => ({ node, rect: node.getBoundingClientRect() }));
+        const visible = candidates.filter(
+          ({ rect }) => rect.bottom > scrollRect.top && rect.top < scrollRect.bottom,
+        );
+        const anchored =
+          visible.find(({ node }) => node.dataset.mentionId === card.anchorMentionId) ?? visible[0];
+        return {
+          card,
+          cardHeight: cardNode?.getBoundingClientRect().height || 160,
+          mentionRect: anchored?.rect ?? null,
+        };
+      });
+
+      const anchors: RailAnchor[] = reads.map(({ card, cardHeight, mentionRect }) => ({
+        cardId: card.assetId,
+        anchorY: mentionRect
+          ? mentionRect.top + mentionRect.height / 2 - railRect.top
+          : (previousPositions[card.assetId] ?? 16) + cardHeight / 2,
+        height: cardHeight,
+      }));
+      const positions = layoutRail(anchors, railRect.height);
+      const nextPositions = Object.fromEntries(positions);
+      const nextVisibility = Object.fromEntries(
+        reads.map(({ card, mentionRect }) => [card.assetId, mentionRect !== null]),
+      );
+
+      let nextHairline: string | null = null;
+      if (cueAsset) {
+        const active = reads.find(({ card }) => card.assetId === cueAsset);
+        const y = positions.get(cueAsset);
+        if (active?.mentionRect && y !== undefined) {
+          const startX = railRect.left;
+          const startY = railRect.top + y + active.cardHeight / 2;
+          const endX = active.mentionRect.right;
+          const endY = active.mentionRect.top + active.mentionRect.height / 2;
+          const pull = Math.min(160, Math.max(32, Math.abs(startX - endX) * 0.35));
+          nextHairline = `M ${startX} ${startY} C ${startX - pull} ${startY}, ${endX + pull} ${endY}, ${endX} ${endY}`;
+        }
+      }
+
+      setScrollDrivenLayout(fromScroll);
+      railPositionsRef.current = nextPositions;
+      setRailPositions(nextPositions);
+      setAnchorVisibility(nextVisibility);
+      setHairlinePath(nextHairline);
+    },
+    [cards, cueAsset],
+  );
+
+  const scheduleRailLayout = useCallback(
+    (fromScroll: boolean) => {
+      if (railFrameRef.current !== null) return;
+      railFrameRef.current = window.requestAnimationFrame(() => measureRail(fromScroll));
+    },
+    [measureRail],
+  );
+
+  useEffect(() => {
+    scheduleRailLayout(false);
+  }, [cards, pageWidth, scheduleRailLayout]);
+
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const onScroll = () => scheduleRailLayout(true);
+    scroll.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      scroll.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [scheduleRailLayout]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const observer = new ResizeObserver(() => scheduleRailLayout(false));
+    rail.querySelectorAll("[data-rail-card]").forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [cards, scheduleRailLayout]);
+
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const updateWidth = () => {
+      setPageWidth(Math.min(MAX_PAGE_WIDTH, Math.max(MIN_PAGE_WIDTH, scroll.clientWidth - 16)));
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(scroll);
+    return () => observer.disconnect();
+  }, [doc]);
+
+  useEffect(
+    () => () => {
+      cancelRailFrame(railFrameRef, window.cancelAnimationFrame);
+    },
+    [],
+  );
 
   const scrollToPage = useCallback((page: number) => {
     const node = scrollRef.current?.querySelector(`[data-page="${page}"]`);
@@ -328,9 +478,15 @@ export default function Reader({ digest }: { digest: string }) {
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      <div
+        className={`grid min-h-0 flex-1 gap-x-8 overflow-x-auto ${
+          outlineOpen
+            ? "grid-cols-[minmax(560px,1fr)_56px] min-[901px]:grid-cols-[240px_minmax(560px,1fr)_56px] min-[1280px]:grid-cols-[240px_minmax(560px,1fr)_400px]"
+            : "grid-cols-[minmax(560px,1fr)_56px] min-[1280px]:grid-cols-[minmax(560px,1fr)_400px]"
+        }`}
+      >
         {outlineOpen && (
-          <nav className="w-56 shrink-0 overflow-y-auto border-r border-neutral-300 p-3 text-sm dark:border-neutral-800">
+          <nav className="hidden w-60 overflow-y-auto border-r border-neutral-300 p-3 text-sm min-[901px]:block dark:border-neutral-800">
             {manifest.sections.length === 0 && <p className="opacity-50">No outline found.</p>}
             {manifest.sections.map((section, i) => (
               <button
@@ -362,7 +518,7 @@ export default function Reader({ digest }: { digest: string }) {
 
         <div
           ref={scrollRef}
-          className="min-w-0 flex-1 overflow-y-auto p-6"
+          className="min-w-[560px] overflow-y-auto px-2 py-6"
           onScroll={() =>
             setSelection((current) =>
               current?.menuOpen ? { ...current, menuOpen: false } : current,
@@ -374,13 +530,14 @@ export default function Reader({ digest }: { digest: string }) {
               key={index}
               doc={doc}
               pageIndex={index}
-              width={PAGE_WIDTH}
+              width={pageWidth}
               active={Math.abs(index - currentPage) <= RENDER_WINDOW}
               dark={dark}
               mentions={analysis[index]?.mentions ?? []}
               citations={analysis[index]?.citations ?? []}
               textItems={analysis[index]?.items ?? []}
-              onOpenAsset={(assetId) => openCard(assetId, true)}
+              onOpenAsset={(assetId, mentionId) => openCard(assetId, true, mentionId)}
+              onMentionCue={setCueAsset}
               onOpenCitation={openCitation}
               onTextSelection={(captured) => {
                 setSelection({ ...captured, menuOpen: true });
@@ -388,13 +545,83 @@ export default function Reader({ digest }: { digest: string }) {
                 setActiveEvidence(null);
               }}
               highlightedAssetId={focused}
+              cueAssetId={cueAsset}
               evidenceBBox={activeEvidence?.page === index ? activeEvidence.bbox : undefined}
             />
           ))}
         </div>
 
+        <aside
+          ref={railRef}
+          aria-label="Pinned figures"
+          className="relative overflow-hidden border-l border-neutral-900/10 bg-neutral-100/80 px-2 dark:border-white/10 dark:bg-neutral-950/80 min-[1280px]:px-0"
+        >
+          <div className="hidden h-full min-[1280px]:block">
+            {cards.map((card) => {
+              const asset = assetsById.get(card.assetId);
+              if (!asset) return null;
+              return (
+                <OverlayCard
+                  key={card.assetId}
+                  asset={asset}
+                  card={card}
+                  focused={focused === card.assetId}
+                  reciprocal={cueAsset === card.assetId}
+                  anchorVisible={anchorVisibility[card.assetId] ?? false}
+                  positioned={railPositions[card.assetId] !== undefined}
+                  y={railPositions[card.assetId] ?? 16}
+                  scrollDriven={scrollDrivenLayout}
+                  compact={cards.length >= 3}
+                  currentPage={currentPage}
+                  mentions={reverseIndex.get(card.assetId) ?? []}
+                  onClose={() => closeCard(card.assetId)}
+                  onFocus={() => setFocused(card.assetId)}
+                  onHoverChange={(hovered) => {
+                    setCueAsset(hovered ? card.assetId : null);
+                    if (hovered) setFocused(card.assetId);
+                  }}
+                  onExpand={() => setExpanded(card.assetId)}
+                  onJumpToMention={(mention) => {
+                    setCards((previous) =>
+                      previous.map((item) =>
+                        item.assetId === card.assetId
+                          ? {
+                              ...item,
+                              anchorMentionId: `${mention.assetId}:p${mention.page}:m${mention.index}`,
+                            }
+                          : item,
+                      ),
+                    );
+                    scrollToPage(mention.page);
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div className="flex h-full flex-col items-center gap-2 py-4 min-[1280px]:hidden">
+            {cards.map((card) => {
+              const asset = assetsById.get(card.assetId);
+              if (!asset) return null;
+              return (
+                <button
+                  key={card.assetId}
+                  type="button"
+                  onClick={() => setSheetAsset(card.assetId)}
+                  className={`h-12 w-12 overflow-hidden rounded-md border bg-white p-1 ${
+                    focused === card.assetId ? "border-sky-500" : "border-neutral-900/10"
+                  }`}
+                  aria-label={`Open ${asset.label}`}
+                >
+                  <img src={blobUrl(asset.image_url)} alt="" className="h-full w-full object-contain" />
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
         {split && (
-          <aside className="flex w-1/2 shrink-0 flex-col border-l border-neutral-300 dark:border-neutral-800">
+          <aside className="fixed inset-y-0 right-0 z-50 flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
             <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
               <span className="flex-1 truncate text-sm">{split.title}</span>
               <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
@@ -409,6 +636,12 @@ export default function Reader({ digest }: { digest: string }) {
           </aside>
         )}
       </div>
+
+      {hairlinePath && (
+        <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-20 h-screen w-screen">
+          <path d={hairlinePath} fill="none" stroke="rgb(14 165 233)" strokeWidth="1" />
+        </svg>
+      )}
 
       {selectionPanel && (
         <SelectionActionPanel
@@ -438,30 +671,40 @@ export default function Reader({ digest }: { digest: string }) {
         onRestorePaperPage={scrollToPage}
       />
 
-      {cards.map((card, index) => {
-        const asset = assetsById.get(card.assetId);
-        if (!asset) return null;
-        return (
-          <OverlayCard
-            key={card.assetId}
-            asset={asset}
-            card={card}
-            ordinal={index + 1}
-            focused={focused === card.assetId}
-            currentPage={currentPage}
-            mentions={reverseIndex.get(card.assetId) ?? []}
-            onMove={(x, y) =>
-              setCards((previous) =>
-                previous.map((c) => (c.assetId === card.assetId ? { ...c, x, y, hard: true } : c)),
-              )
-            }
-            onClose={() => closeCard(card.assetId)}
-            onFocus={() => setFocused(card.assetId)}
-            onExpand={() => setExpanded(card.assetId)}
-            onJumpToMention={(mention) => scrollToPage(mention.page)}
-          />
-        );
-      })}
+      {sheetAsset && assetsById.get(sheetAsset) && (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/35 p-4 min-[1280px]:hidden">
+          <div className="mx-auto w-full max-w-3xl">
+            {(() => {
+              const card = cards.find((item) => item.assetId === sheetAsset);
+              const asset = assetsById.get(sheetAsset);
+              if (!card || !asset) return null;
+              return (
+                <OverlayCard
+                  asset={asset}
+                  card={card}
+                  variant="sheet"
+                  focused
+                  reciprocal={false}
+                  anchorVisible
+                  positioned
+                  y={0}
+                  scrollDriven={false}
+                  currentPage={currentPage}
+                  mentions={reverseIndex.get(card.assetId) ?? []}
+                  onClose={() => setSheetAsset(null)}
+                  onFocus={() => setFocused(card.assetId)}
+                  onHoverChange={() => undefined}
+                  onExpand={() => setExpanded(card.assetId)}
+                  onJumpToMention={(mention) => {
+                    setSheetAsset(null);
+                    scrollToPage(mention.page);
+                  }}
+                />
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {expandedAsset && (
         <div
