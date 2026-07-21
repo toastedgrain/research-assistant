@@ -14,8 +14,30 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 export type { PDFDocumentProxy, PDFPageProxy };
 
+export interface MountedTextLayer {
+  cancel: () => void;
+}
+
 export async function loadPdf(url: string): Promise<PDFDocumentProxy> {
   return pdfjs.getDocument({ url }).promise;
+}
+
+export async function mountTextLayer(
+  page: PDFPageProxy,
+  container: HTMLElement,
+  viewport: ReturnType<PDFPageProxy["getViewport"]>,
+): Promise<MountedTextLayer> {
+  const content = await page.getTextContent();
+  const layer = new pdfjs.TextLayer({
+    textContentSource: content,
+    container,
+    viewport,
+  });
+  await layer.render();
+  layer.textDivs.forEach((span, index) => {
+    span.dataset.textItemIndex = String(index);
+  });
+  return layer;
 }
 
 /**

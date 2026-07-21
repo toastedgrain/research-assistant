@@ -11,6 +11,7 @@
     "gen:schema": "json2ts ../../packages/schema/manifest.schema.json -o ../../packages/schema/manifest.ts --bannerComment \"/* GENERATED from manifest.schema.json by 'npm run gen:schema'. Do not edit by hand. */\""
   },
   "dependencies": {
+    "lucide-react": "^1.25.0",
     "next": "16.2.10",
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
