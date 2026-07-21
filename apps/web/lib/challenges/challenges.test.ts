@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { evidenceTarget } from "../evidence/navigation";
-import { scoreChallenge, validateChallenge } from "./challenge";
-import type { ChallengeSpec } from "./types";
+import { passageEvidence } from "../evidence/source";
+import { scoreChallenge } from "./challenge";
+import { challengeEvidence, type ChallengeSpec } from "./contracts";
 
-function multipleChoice(): ChallengeSpec {
+const target = challengeEvidence(
+  passageEvidence("paper-1", 2, "Attention mixes values."),
+  "The passage names the values mixed by attention.",
+  { kind: "passage", resourceId: "passage-2" },
+);
+
+function multipleChoice(): Extract<ChallengeSpec, { type: "multiple-choice"; mode: "scored" }> {
   return {
     id: "challenge-1",
     type: "multiple-choice",
+    mode: "scored",
     paperIds: ["paper-1"],
     concepts: ["attention"],
-    source: [
-      { paperId: "paper-1", page: 2, kind: "passage", text: "Attention mixes values." },
-    ],
+    evidence: [target],
     prompt: "What does attention mix?",
     difficulty: "easy",
     payload: {
@@ -21,44 +27,25 @@ function multipleChoice(): ChallengeSpec {
         { id: "pages", label: "Pages" },
       ],
     },
-    answer: { kind: "choice", choiceIds: ["tokens"] },
+    answer: {
+      kind: "choice",
+      correctChoiceIds: ["tokens"],
+      relationships: [{ id: "choice:tokens", evidenceIds: [target.id], reason: target.reason }],
+    },
     hints: [],
     scoring: { maxPoints: 1, partialCredit: false },
   };
 }
 
-describe("challenge validation", () => {
-  it("rejects a scored challenge with no source evidence", () => {
+describe("challenge scoring", () => {
+  it("scores deterministic scored responses without giving Explore a score", () => {
     const challenge = multipleChoice();
-    challenge.source = [];
-    expect(validateChallenge(challenge, { "paper-1": 5 }).valid).toBe(false);
-  });
+    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["tokens"] })?.correct).toBe(true);
+    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["pages"] })?.correct).toBe(false);
 
-  it("rejects duplicate choices", () => {
-    const challenge = multipleChoice();
-    if (challenge.payload.kind === "multiple-choice") {
-      challenge.payload.choices[1].label = " values ";
-    }
-    expect(validateChallenge(challenge, { "paper-1": 5 }).errors).toContain(
-      "Choice labels must be distinct.",
-    );
-  });
-
-  it("rejects evidence on a page outside the paper", () => {
-    const result = validateChallenge(multipleChoice(), { "paper-1": 2 });
-    expect(result.errors).toContain("Source evidence points to an invalid page.");
-  });
-});
-
-describe("challenge scoring and evidence navigation", () => {
-  it("scores correct and incorrect answers deterministically", () => {
-    const challenge = multipleChoice();
-    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["tokens"] }).correct).toBe(
-      true,
-    );
-    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["pages"] }).correct).toBe(
-      false,
-    );
+    const { answer: _answer, scoring: _scoring, ...base } = challenge;
+    const explore: ChallengeSpec = { ...base, id: "explore-1", mode: "explore", hints: [] };
+    expect(scoreChallenge(explore, { kind: "choice", choiceIds: ["tokens"] })).toBeNull();
   });
 
   it("returns the expected zero-based evidence page and bbox", () => {

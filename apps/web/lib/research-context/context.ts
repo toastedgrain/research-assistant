@@ -2,6 +2,7 @@ import type { Citation } from "../citations";
 import type { Manifest, Section } from "../manifest";
 import { paperIdOf, paperRefOf, sectionIdFor } from "../evidence/source";
 import type { Mention, PageTextItem } from "../mentions";
+import type { PaperLearningIndex } from "../learning/paper-index";
 import type {
   AssetRef,
   CitationRef,
@@ -24,6 +25,7 @@ interface BuildContextInput {
   manifest: Manifest;
   selection: SelectionContext;
   pages: PageContextData[];
+  index?: PaperLearningIndex;
 }
 
 const WINDOW_SIZE = 2;
@@ -171,9 +173,10 @@ export function buildResearchContext({
   manifest,
   selection,
   pages,
+  index,
 }: BuildContextInput): ResearchContext {
   const paperId = paperIdOf(manifest);
-  const allPassages = pages.flatMap((page, index) =>
+  const allPassages = index?.passages ?? pages.flatMap((page, index) =>
     buildPagePassages(paperId, index, page.items, manifest.sections),
   );
   const selectedIndex = allPassages.findIndex((passage) => overlapsSelection(passage, selection));
