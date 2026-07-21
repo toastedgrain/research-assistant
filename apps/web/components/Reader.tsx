@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { blobUrl, digestOf, loadManifest, pdfUrl } from "../lib/api";
 import { findCitations, type Citation } from "../lib/citations";
 import { evidenceTarget } from "../lib/evidence/navigation";
@@ -87,7 +88,7 @@ export default function Reader({ digest }: { digest: string }) {
   const [currentSection, setCurrentSection] = useState("");
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
   const [dark, setDark] = useState(false);
-  const [outlineOpen, setOutlineOpen] = useState(true);
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [split, setSplit] = useState<{ digest: string; title: string } | null>(null);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [selectionPanel, setSelectionPanel] = useState<SelectionPanelState | null>(null);
@@ -233,6 +234,10 @@ export default function Reader({ digest }: { digest: string }) {
     const node = scrollRef.current?.querySelector(`[data-page="${page}"]`);
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     node?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }, []);
+
+  const closeCompactOutline = useCallback(() => {
+    if (window.innerWidth < 1100) setOutlineOpen(false);
   }, []);
 
   const restorePopup = useCallback(
@@ -480,6 +485,10 @@ export default function Reader({ digest }: { digest: string }) {
         .sort((left, right) => left.z - right.z),
     [popups],
   );
+  const dockedPopups = useMemo(
+    () => Object.values(popups).filter((popup) => popup.mode === "docked"),
+    [popups],
+  );
   const activePopupId = visiblePopups.at(-1)?.assetId ?? null;
 
   useEffect(() => {
@@ -541,86 +550,111 @@ export default function Reader({ digest }: { digest: string }) {
   }
 
   return (
-    <div className={`flex h-screen flex-col ${dark ? "dark bg-neutral-950 text-neutral-100" : "bg-neutral-100"}`}>
-      <header className="relative flex shrink-0 items-center gap-3 border-b border-neutral-300 px-4 py-2 dark:border-neutral-800">
-        <button
-          type="button"
-          onClick={() => setOutlineOpen((open) => !open)}
-          className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
-          title="Toggle outline (\\)"
-        >
-          â˜°
-        </button>
-        <h1 className="flex-1 truncate text-sm font-medium">{manifest.title || "Untitled paper"}</h1>
+    <div
+      className={`relative h-screen overflow-hidden font-sans ${
+        dark
+          ? "dark bg-slate-950 text-slate-100"
+          : "bg-[linear-gradient(160deg,#f4f6fb_0%,#eef1f8_45%,#e8ecf5_100%)] text-slate-900"
+      }`}
+    >
+      <header className="fixed left-1/2 top-[22px] z-[220] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 rounded-full border border-white/90 bg-white/65 px-[18px] py-2 shadow-[0_8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl backdrop-saturate-150 sm:gap-3 dark:border-white/15 dark:bg-slate-900/70">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-[#3b5bdb]" aria-hidden="true" />
+        <h1 className="max-w-[clamp(120px,24vw,360px)] truncate text-[13px] font-semibold">
+          {manifest.title || "Untitled paper"}
+        </h1>
         {currentSection && (
-          <span className="max-w-56 truncate text-xs opacity-60" title={currentSection}>
+          <span className="hidden max-w-48 truncate text-xs text-slate-400 lg:inline" title={currentSection}>
             {currentSection}
           </span>
         )}
-        <span className="text-xs opacity-60">
-          p.{currentPage + 1} / {manifest.page_count}
+        <span className="h-4 w-px shrink-0 bg-slate-900/10 dark:bg-white/10" aria-hidden="true" />
+        <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+          p. {currentPage + 1} / {manifest.page_count}
         </span>
-        <label className="flex items-center gap-1 text-xs">
+        <span className="relative hidden h-1 w-[72px] shrink-0 overflow-hidden rounded-full bg-slate-900/10 sm:block dark:bg-white/10">
+          <span
+            className="absolute inset-y-0 left-0 rounded-full bg-[#3b5bdb]"
+            style={{ width: `${Math.max(4, progress * 100)}%` }}
+          />
+        </span>
+        <button
+          type="button"
+          onClick={() => setOutlineOpen((open) => !open)}
+          aria-label="Toggle outline"
+          aria-expanded={outlineOpen}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          title="Toggle outline (\\)"
+        >
+          <Menu size={15} aria-hidden="true" />
+        </button>
+        <label className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
           <input
             type="checkbox"
             checked={autoSurface}
             onChange={(event) => setAutoSurface(event.target.checked)}
+            className="accent-[#3b5bdb]"
           />
-          auto-surface
+          auto
         </label>
         <button
           type="button"
           onClick={() => setDark((on) => !on)}
-          className="rounded px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-neutral-800"
+          aria-label="Toggle dark mode"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
         >
-          {dark ? "â˜€" : "â˜¾"}
+          {dark ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
         </button>
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-indigo-500"
-          style={{ transform: `scaleX(${progress})` }}
-        />
       </header>
 
-      <div
-        className={`grid min-h-0 flex-1 overflow-x-auto ${
-          outlineOpen
-            ? "grid-cols-[minmax(560px,1fr)] min-[901px]:grid-cols-[240px_minmax(560px,1fr)]"
-            : "grid-cols-[minmax(560px,1fr)]"
-        }`}
-      >
-        {outlineOpen && (
-          <nav className="hidden w-60 overflow-y-auto border-r border-neutral-300 p-3 text-sm min-[901px]:block dark:border-neutral-800">
-            {manifest.sections.length === 0 && <p className="opacity-50">No outline found.</p>}
-            {manifest.sections.map((section, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => scrollToPage(section.page)}
-                className="block w-full truncate rounded px-2 py-1 text-left hover:bg-neutral-200 dark:hover:bg-neutral-800"
-                style={{ paddingLeft: 8 + (section.level - 1) * 12 }}
-                title={section.title}
-              >
-                {section.title}
-              </button>
-            ))}
-            <hr className="my-3 border-neutral-300 dark:border-neutral-800" />
-            <p className="mb-1 px-2 text-xs uppercase tracking-wide opacity-50">Figures</p>
-            {manifest.assets.map((asset) => (
-              <button
-                key={asset.asset_id}
-                type="button"
-                onClick={() => openPopup(asset.asset_id, null, true)}
-                className="block w-full truncate rounded px-2 py-1 text-left hover:bg-neutral-200 dark:hover:bg-neutral-800"
-                title={asset.caption}
-              >
-                {asset.label}
-              </button>
-            ))}
-          </nav>
-        )}
+      {outlineOpen && (
+        <nav
+          aria-label="Paper outline"
+          className="fixed bottom-6 left-6 top-[84px] z-[215] w-60 overflow-y-auto rounded-[24px] border border-white/90 bg-white/65 p-3 text-sm shadow-[0_16px_50px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/15 dark:bg-slate-900/75"
+        >
+          <p className="mb-2 px-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            Outline
+          </p>
+          {manifest.sections.length === 0 && (
+            <p className="px-2 py-1 text-slate-400">No outline found.</p>
+          )}
+          {manifest.sections.map((section, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                scrollToPage(section.page);
+                closeCompactOutline();
+              }}
+              className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-slate-600 transition-colors hover:bg-slate-900/5 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+              style={{ paddingLeft: 8 + (section.level - 1) * 12 }}
+              title={section.title}
+            >
+              {section.title}
+            </button>
+          ))}
+          <hr className="my-3 border-slate-900/10 dark:border-white/10" />
+          <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            Figures
+          </p>
+          {manifest.assets.map((asset) => (
+            <button
+              key={asset.asset_id}
+              type="button"
+              onClick={() => {
+                openPopup(asset.asset_id, null, true);
+                closeCompactOutline();
+              }}
+              className="block w-full truncate rounded-lg px-2 py-1.5 text-left font-medium text-[#2f4ac2] transition-colors hover:bg-[#3b5bdb]/10 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-indigo-300 dark:hover:bg-white/10"
+              title={asset.caption}
+            >
+              {asset.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
-        <div ref={scrollRef} className="min-w-[560px] overflow-y-auto px-2 py-6">
+      <div ref={scrollRef} className="h-full overflow-y-auto px-6 pb-28 pt-[88px]">
+        <main className="mx-auto w-fit">
           {Array.from({ length: manifest.page_count }, (_, index) => (
             <PdfPageView
               key={index}
@@ -648,24 +682,24 @@ export default function Reader({ digest }: { digest: string }) {
               evidenceBBox={activeEvidence?.page === index ? activeEvidence.bbox : undefined}
             />
           ))}
-        </div>
-
-        {split && (
-          <aside className="fixed inset-y-0 right-0 z-[1000] flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
-            <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
-              <span className="flex-1 truncate text-sm">{split.title}</span>
-              <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
-                Ã—
-              </button>
-            </div>
-            {split.digest ? (
-              <iframe title={split.title} src={pdfUrl(split.digest)} className="flex-1" />
-            ) : (
-              <p className="p-4 text-sm opacity-60">Fetching the cited paperâ€¦</p>
-            )}
-          </aside>
-        )}
+        </main>
       </div>
+
+      {split && (
+        <aside className="fixed inset-y-0 right-0 z-[1000] flex w-1/2 flex-col border-l border-neutral-300 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="flex items-center gap-2 border-b border-neutral-300 px-3 py-2 dark:border-neutral-800">
+            <span className="flex-1 truncate text-sm">{split.title}</span>
+            <button type="button" onClick={() => setSplit(null)} aria-label="Close split view">
+              Close
+            </button>
+          </div>
+          {split.digest ? (
+            <iframe title={split.title} src={pdfUrl(split.digest)} className="flex-1" />
+          ) : (
+            <p className="p-4 text-sm opacity-60">Fetching the cited paper...</p>
+          )}
+        </aside>
+      )}
 
       <div className="pointer-events-none fixed inset-0 z-[100]">
         {visiblePopups.map((popup) => {
@@ -691,34 +725,30 @@ export default function Reader({ digest }: { digest: string }) {
         })}
       </div>
 
-      {Object.values(popups).some((popup) => popup.mode === "docked") && (
-        <aside
+      {dockedPopups.length > 0 && (
+        <div
           aria-label="Minimized figures"
-          className="fixed bottom-4 left-1/2 z-[90] flex -translate-x-1/2 gap-2 rounded-xl border border-neutral-900/10 bg-white/90 p-2 shadow-lg backdrop-blur dark:border-white/10 dark:bg-neutral-900/90"
+          className="fixed bottom-6 left-1/2 z-[210] flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-full border border-white/90 bg-white/60 px-3 py-2 shadow-[0_10px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/15 dark:bg-slate-900/70"
         >
-          {Object.values(popups)
-            .filter((popup) => popup.mode === "docked")
-            .map((popup) => {
-              const asset = assetsById.get(popup.assetId);
-              if (!asset) return null;
-              return (
-                <button
-                  key={popup.assetId}
-                  type="button"
-                  onClick={() => restorePopup(popup.assetId)}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-900/10 bg-white px-2 py-1.5 text-xs shadow-sm hover:border-indigo-400 dark:border-white/10 dark:bg-neutral-800"
-                  aria-label={`Restore ${asset.label}`}
-                >
-                  <img
-                    src={blobUrl(asset.image_url)}
-                    alt=""
-                    className="h-8 w-10 bg-white object-contain"
-                  />
-                  {asset.label}
-                </button>
-              );
-            })}
-        </aside>
+          <span className="px-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+            Closed
+          </span>
+          {dockedPopups.map((popup) => {
+            const asset = assetsById.get(popup.assetId);
+            if (!asset) return null;
+            return (
+              <button
+                key={popup.assetId}
+                type="button"
+                onClick={() => restorePopup(popup.assetId)}
+                className="shrink-0 rounded-full border border-[#3b5bdb]/20 bg-[#3b5bdb]/10 px-3 py-1 text-[12.5px] font-semibold text-[#2f4ac2] transition-colors hover:bg-[#3b5bdb]/20 focus-visible:outline-2 focus-visible:outline-[#3b5bdb] dark:text-indigo-200"
+                aria-label={`Restore ${asset.label}`}
+              >
+                {asset.label}
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {selectionPanel && (
