@@ -20,6 +20,7 @@ import { findCitations, type Citation } from "../citations";
 import type { Manifest } from "../manifest";
 import { buildReverseIndex, findMentions, type Mention } from "../mentions";
 import { loadPdf, pageTextItems } from "../pdf";
+import { citationBodyItems } from "./bibliography";
 
 export interface PaperAnalysis {
   manifest: Manifest;
@@ -37,11 +38,14 @@ async function analyse(digest: string): Promise<PaperAnalysis> {
 
   const mentionsByPage: Mention[][] = [];
   const citationsByPage: Citation[][] = [];
+  let bibliographyStarted = false;
   for (let index = 0; index < pdf.numPages; index += 1) {
     const page = await pdf.getPage(index + 1);
     const items = await pageTextItems(page);
     mentionsByPage.push(findMentions(items, { page: index, assets: manifest.assets }));
-    citationsByPage.push(findCitations(items, { references: manifest.references }));
+    const citationBody = citationBodyItems(items, bibliographyStarted);
+    bibliographyStarted = citationBody.bibliographyStarted;
+    citationsByPage.push(findCitations(citationBody.items, { references: manifest.references }));
   }
 
   return {
