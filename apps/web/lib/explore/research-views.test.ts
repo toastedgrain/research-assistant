@@ -42,7 +42,7 @@ describe("research view models", () => {
     graph = addEdge(graph, { source: "two", target: "three", type: "generated-related", generated: true });
     const lineage = buildLineage(graph, new Set(["a".repeat(64), "b".repeat(64)]));
     expect(lineage.nodes.map(({ id }) => id)).toEqual(["one", "two"]);
-    expect(lineage.edges).toEqual([{ source: "one", target: "two", type: "cites" }]);
+    expect(lineage.edges).toEqual([expect.objectContaining({ source: "one", target: "two", type: "cites", provenance: "literal", generated: false })]);
   });
 
   it("uses a fixed declared constellation radius rather than implied importance", () => {

@@ -138,3 +138,38 @@ The next acceptance run must execute all 77 steps in a real browser, including k
 focus, Escape, reduced-motion, narrow viewport, IndexedDB reload, dual-paper navigation, and
 screen-reader-semantic inspection. Do not change this status to complete based only on the
 automated gates above.
+
+## Stage 7 — Visual Learning & Evidence Graph acceptance
+
+Implemented and automated/live-service verified:
+
+- provider-neutral local generation boundary and availability UX;
+- structured `VisualLearningSpec` / `VisualChallengeSpec` generation, cache, repair, and
+  deterministic fallback;
+- stable-ID multiple-choice scoring regression across every answer position;
+- React Flow + Motion visual runtime, keyboard alternatives, reduced-motion behavior, and
+  Mermaid secondary rendering;
+- dynamic visual-game generation from bounded `ResearchContext`, with multiple choice only a
+  fallback;
+- literal-label and explicit-order validation for scored generated components/flows;
+- evidence-native `ResearchGraph`, conservative claim detection, `EvidencePacket`, Trace Claim,
+  Evidence Coverage, Investigator, provenance display, evidence-chain persistence, and bounded
+  cross-paper tension candidates;
+- Claim vs Evidence, Evidence Hunt, Reconstruct Experiment, and exploratory Compare Evidence
+  games using the canonical graph.
+
+Live probes used the locally installed configured model. A source-described encoder request
+returned a scored `build-flow` only after validation removed invented Input/Output nodes. A rich
+Attention EvidencePacket produced a concise interpretation citing three packet evidence IDs; an
+insufficient packet returned `insufficient-evidence`. Stopping both local runtime processes made
+AI status report `service-unavailable` while Reader continued returning 200; service was then
+restarted successfully.
+
+Current gates: **53 web files / 251 tests**, **152 Python tests**, TypeScript clean, production
+build passed, no lint script. `npm audit` reports two moderate findings in Next's bundled PostCSS;
+the proposed force fix is an invalid breaking downgrade and was not applied.
+
+Browser acceptance for both the original 1–77 flow and the new 1–21 evidence workflow remains
+**BLOCKED**: browser discovery returned an empty list. HTTP 200, tests, source inspection, and
+live model calls do not prove visual animation, focus order, drag behavior, mobile layout, or
+reload persistence in an actual browser.

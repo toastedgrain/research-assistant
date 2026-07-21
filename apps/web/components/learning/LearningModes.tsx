@@ -20,13 +20,13 @@ import type { EvidenceResolver } from "../../lib/evidence/resource";
 import { buildDifficultyRegions } from "../../lib/learning/difficulty";
 import { buildLearningObjects } from "../../lib/learning/objects";
 import { buildPrerequisiteGraph } from "../../lib/learning/prerequisites";
-import { createMiniDiagram } from "../../lib/learning/visualize";
 import type { PaperLearningIndex } from "../../lib/learning/paper-index";
 import type { ResearchContext } from "../../lib/research-context/types";
 import type { LearningProgress } from "../../lib/progress/types";
+import LocalAiStatus from "../visual-learning/LocalAiStatus";
 
 type Mode = "read" | "learn" | "quest";
-type UnderstandView = "parts" | "prerequisites" | "visualize" | null;
+type UnderstandView = "parts" | "prerequisites" | null;
 export type LearningModeRequest = "understand" | "visualize" | "quest" | "play";
 
 interface Props {
@@ -36,6 +36,8 @@ interface Props {
   completedChallengeIds: ReadonlySet<string>;
   progress?: LearningProgress | null;
   onStartChallenge: (challenge: ChallengeSpec) => void;
+  onStartVisualLearning: () => void;
+  onStartVisualGame: (mode: "play" | "quest") => void;
   onTrace: () => void;
   requestedAction?: LearningModeRequest;
   onRequestedActionHandled?: () => void;
@@ -65,6 +67,8 @@ export default function LearningModes({
   completedChallengeIds,
   progress,
   onStartChallenge,
+  onStartVisualLearning,
+  onStartVisualGame,
   onTrace,
   requestedAction,
   onRequestedActionHandled,
@@ -79,7 +83,6 @@ export default function LearningModes({
     () => concept ? buildPrerequisiteGraph(objects, concept.label) : null,
     [concept, objects],
   );
-  const diagram = useMemo(() => concept ? createMiniDiagram(concept, objects) : null, [concept, objects]);
   const quickQuiz = useMemo(() => (index ? createQuickQuiz(index, objects) : null), [index, objects]);
   const paperCheck = useMemo(() => (index ? createPaperCheck(index, objects) : null), [index, objects]);
   const activities = useMemo<Array<{ label: string; challenge: ChallengeSpec | null; unavailable: string }>>(() => index ? [
@@ -103,14 +106,15 @@ export default function LearningModes({
     }
     if (requestedAction === "visualize") {
       setMode("learn");
-      setUnderstand("visualize");
+      onStartVisualLearning();
     }
     if (requestedAction === "play") {
       setMode("learn");
-      if (quickQuiz) onStartChallenge(quickQuiz);
+      if (context) onStartVisualGame("play");
+      else if (quickQuiz) onStartChallenge(quickQuiz);
     }
     onRequestedActionHandled?.();
-  }, [onRequestedActionHandled, onStartChallenge, quickQuiz, requestedAction]);
+  }, [context, onRequestedActionHandled, onStartChallenge, onStartVisualGame, onStartVisualLearning, quickQuiz, requestedAction]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -157,6 +161,7 @@ export default function LearningModes({
           </div>
           <button type="button" className="h-8 w-8 focus-visible:outline-2 focus-visible:outline-sky-600" onClick={() => setMode("read")} aria-label="Close Learn mode"><X aria-hidden="true" size={16} /></button>
         </header>
+        <div className="mt-3"><LocalAiStatus /></div>
 
         <section className="mt-4" aria-label="Relative reading density">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Relative reading density</h3>
@@ -180,10 +185,10 @@ export default function LearningModes({
             <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Explain simply (source-only)</button>
             <button type="button" onClick={() => setUnderstand("parts")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Break into source parts</button>
             <button type="button" onClick={() => setUnderstand("prerequisites")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Show prerequisites</button>
-            <button type="button" onClick={() => setUnderstand("visualize")} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Visualize</button>
+            <button type="button" onClick={onStartVisualLearning} disabled={!context?.selection} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-900">Visualize</button>
             <button type="button" onClick={onTrace} className="min-h-9 border px-2 text-xs hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-sky-600 dark:border-neutral-700 dark:hover:bg-neutral-900">Trace in paper</button>
           </div>
-          <button type="button" onClick={() => start(quickQuiz)} disabled={!quickQuiz} className="mt-2 min-h-9 w-full border border-sky-700 px-2 text-xs text-sky-800 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-40 dark:text-sky-300">Learn interactively</button>
+          <button type="button" onClick={() => context ? onStartVisualGame("play") : start(quickQuiz)} disabled={!context && !quickQuiz} className="mt-2 min-h-9 w-full border border-sky-700 px-2 text-xs text-sky-800 focus-visible:outline-2 focus-visible:outline-sky-600 disabled:opacity-40 dark:text-sky-300">Learn interactively</button>
 
           {understand === "parts" && (
             <div className="mt-3 border-l-2 border-sky-600 pl-3 text-xs leading-5">
@@ -196,13 +201,6 @@ export default function LearningModes({
             <div className="mt-3 border-l-2 border-sky-600 pl-3 text-xs leading-5">
               <p className="font-medium">Prerequisites</p>
               {prerequisites?.nodes.length ? prerequisites.nodes.map((node) => <p key={node.id}>{node.label} <span className="text-neutral-500">({node.kind === "suggested" ? "suggested / generated" : "source-derived"})</span></p>) : <p className="text-neutral-500">No explicit prerequisite relationship was found in this paper.</p>}
-            </div>
-          )}
-          {understand === "visualize" && (
-            <div className="mt-3 border-l-2 border-sky-600 pl-3 text-xs leading-5">
-              <p className="font-medium">{diagram?.label ?? "No controlled source map available"}</p>
-              {diagram?.nodes.map((node) => <p key={node.id}>{node.kind === "concept" ? "●" : "↳"} {node.label}</p>)}
-              {diagram && <p className="mt-1 text-neutral-500">The connector means “defined in” and is backed by the cited source passage.</p>}
             </div>
           )}
         </section>
@@ -237,6 +235,8 @@ export default function LearningModes({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Section checkpoints</h3>
           <p className="mt-1 text-xs text-neutral-500">{completedChallengeIds.size} completed and persisted. Progress reflects source-backed interactions, not time spent.</p>
           <p className="mt-1 text-xs text-neutral-500">Relative density: {regions.map((region) => dots(region.difficulty)).join(" · ")}</p>
+          <button type="button" disabled={!context?.selection} onClick={() => onStartVisualGame("quest")} className="mt-3 min-h-10 w-full rounded-md bg-violet-700 px-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:opacity-40">Generate visual quest from selection</button>
+          {!context?.selection && <p className="mt-1 text-[11px] text-neutral-500">Select a source passage first so the quest request stays evidence-bounded.</p>}
           <div className="mt-2 grid gap-2">
             {quest?.checkpoints.map((checkpoint) => {
               const complete = checkpoint.challenges.length > 0 && checkpoint.challenges.every((challenge) => completedChallengeIds.has(challenge.id));

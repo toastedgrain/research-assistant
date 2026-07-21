@@ -11,11 +11,17 @@
     "gen:schema": "json2ts ../../packages/schema/manifest.schema.json -o ../../packages/schema/manifest.ts --bannerComment \"/* GENERATED from manifest.schema.json by 'npm run gen:schema'. Do not edit by hand. */\""
   },
   "dependencies": {
+    "@xyflow/react": "^12.11.2",
     "lucide-react": "^1.25.0",
+    "mermaid": "^11.16.0",
+    "motion": "^12.42.2",
     "next": "16.2.10",
+    "ollama": "^0.6.3",
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -13,9 +13,13 @@ audience that exists; one wrong generated claim and they churn permanently.
 **Design rule:** a feature that *invents* text is off by default and clearly labeled. A
 feature that *relocates* text already in the paper can be on by default.
 
-**Currently: zero LLM calls in this codebase.** The only sanctioned future one is
-reference-string → structured data (spec §7a step 3), because the output is validated
-structured data, not prose shown to the reader as fact. Justify any new one against §2.
+**Optional local generation now exists, but it is never authoritative.** User-triggered
+Visualize, Play, evidence-graph candidate, tension-inspection, and investigator actions pass
+bounded verified `SourceEvidence` through a provider-neutral server boundary. Structured
+output is schema-validated, source-ID-validated, visibly labelled generated/inferred, and
+fails closed or falls back to deterministic source views. Core reading remains fully usable
+when the provider is disabled or unavailable. Do not add automatic paper summaries or let
+model output redefine literal source relationships.
 
 ## Status
 
@@ -37,9 +41,9 @@ no affordance.
 unmeasured — there are no hand-labelled bounding boxes, and `eval/` reports that as
 UNMEASURED rather than inventing a number. Mention precision/recall are measured on two
 labelled pages of one paper, which is a smoke test with a percentage attached, not the
-30-paper golden set spec §11 asks for. Verified evidence pins, collections, board state, and
-learning progress now persist through IndexedDB; product metrics remain uninstrumented.
-`STAGE_6_INTEGRATION_ACCEPTANCE.md` is the current expansion status and records the browser
+30-paper golden set spec §11 asks for. Verified evidence pins, evidence chains, collections,
+board state, generated-artifact caches, and learning progress now persist through IndexedDB;
+product metrics remain uninstrumented. `STAGE_6_INTEGRATION_ACCEPTANCE.md` is the current expansion status and records the browser
 acceptance gate separately from automated verification.
 
 Two source-of-truth documents:
@@ -142,10 +146,10 @@ cd apps/web && npm run dev
   plain text, no open button.
 - Schema changes start in `packages/schema/manifest.schema.json`, then regenerate TS types
   with `npm run gen:schema` from `apps/web`. Never edit the generated `manifest.ts`.
-- **This repo names no AI vendor.** It is a hackathon entry. Agent guidance belongs in this
-  file; harness-specific files (`CLAUDE.md`, `.cursorrules`) stay untracked via
-  `.git/info/exclude`, not `.gitignore`, so even the ignore rules name nobody. Commit
-  messages included.
+- **Core AI contracts name no vendor.** Components depend on
+  `LearningGenerationProvider`, not a model SDK. Provider adapters and machine-local env
+  configuration may name the selected runtime/model, so they can be swapped without
+  rewriting learning or evidence UI. Harness-specific files stay untracked.
 - Don't add features not in the spec or the plan. If something seems obviously missing,
   raise it as an open question rather than building it (spec §14).
 

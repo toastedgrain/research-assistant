@@ -424,3 +424,22 @@ is currently unmeasured.
 - **Visual/browser acceptance remains blocked.** The in-app controller had no available
   browser. Source inspection, tests, HTTP checks, and the build passed, but do not establish
   focus order, drag feel, crop appearance, or the complete 1–77 walkthrough.
+
+---
+
+## Stage 7 integration note
+
+Developer B surfaces now consume the same evidence-native `ResearchGraph` used by learning:
+
+- Explore visibly opens on Evidence Graph and includes a precision-first paper coverage view.
+- Workspace persists verified evidence chains separately from user notes and generated
+  interpretations.
+- Collection Research includes bounded cross-paper Tensions & Agreements inspection. Every
+  candidate requires source evidence from both papers and remains generated/inferred.
+- Lineage edges expose “Why are these connected?”, edge provenance, and exact source pointers.
+- Evidence graph nodes and edges retain literal/generated/user semantics; solid, dashed, and
+  dotted styles are also described in text so color is not the only signal.
+
+The current repository snapshot verifies 53 web files / 251 tests, 152 API tests, TypeScript,
+and production build. Live HTTP/model checks passed. Full visual browser acceptance is still
+blocked because no browser session was available.

@@ -44,3 +44,13 @@ The shared reader routing slot is no longer untouched: Reader now visibly expose
 Workspace, Reflow, and `Read / Learn / Quest`, and it consumes exact evidence deep links.
 This document must not be used to claim visual completion; see the current audit for the
 per-feature status and remaining acceptance gate.
+
+## Stage 7 addendum
+
+This historical snapshot is also superseded for evidence-native research work. Explore now
+mounts an Evidence Graph coverage view; Collection Research mounts candidate tensions and
+agreements; Workspace persists evidence chains; lineage exposes edge provenance; and Trace Claim
+uses the same graph as investigator and evidence-reasoning games. Generated relationships remain
+generated through validation, persistence, and rendering. Current verification is 53 web files /
+251 tests, 152 Python tests, clean TypeScript, and a passing production build. Live browser
+acceptance remains blocked.

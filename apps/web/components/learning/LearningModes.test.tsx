@@ -27,6 +27,8 @@ describe("LearningModes", () => {
         context={null}
         completedChallengeIds={new Set()}
         onStartChallenge={() => undefined}
+        onStartVisualLearning={() => undefined}
+        onStartVisualGame={() => undefined}
         onTrace={() => undefined}
       />,
     );

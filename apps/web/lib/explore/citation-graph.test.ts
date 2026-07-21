@@ -56,11 +56,13 @@ describe("citation graph precision", () => {
     );
 
     expect(model.graph.edges).toEqual([
-      {
+      expect.objectContaining({
         source: "arxiv:2101.00001",
         target: "arxiv:2001.00001",
         type: "cites",
-      },
+        provenance: "literal",
+        generated: false,
+      }),
     ]);
     expect(model.graph.nodes.map(({ id }) => id).sort()).toEqual([
       "arxiv:2001.00001",

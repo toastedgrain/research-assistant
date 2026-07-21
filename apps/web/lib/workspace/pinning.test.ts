@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Manifest } from "../manifest";
 import { createSourceEvidence } from "../evidence/source";
 import { MemoryWorkspaceRepository } from "./memory";
-import { pinVerifiedEvidence } from "./pinning";
+import { pinEvidencePacket, pinVerifiedEvidence } from "./pinning";
+import { addEdge, addNode, emptyGraph } from "../explore/graph";
+import type { EvidencePacket } from "../evidence-graph/types";
 
 const manifest = {
   doc_id: "sha256:paper", source: { type: "upload", arxiv_id: null }, title: "Paper", page_count: 1,
@@ -25,5 +27,18 @@ describe("verified pinning", () => {
     const invalid = createSourceEvidence(manifest, { page: 0, kind: "figure", assetId: "missing" });
     expect(await pinVerifiedEvidence(repository, manifest, invalid)).toMatchObject({ status: "rejected" });
     expect(await repository.listCollections()).toEqual([]);
+  });
+
+  it("persists an evidence chain while preserving generated relationship provenance", async () => {
+    const repository = new MemoryWorkspaceRepository();
+    const claim = createSourceEvidence(manifest, { page: 0, kind: "passage", text: "We show Figure 1 reports the result." });
+    const figure = createSourceEvidence(manifest, { page: 0, kind: "figure", assetId: "fig-1", bbox: manifest.assets[0].bbox });
+    let graph = addNode(emptyGraph(), { id: "claim", type: "claim", label: claim.text!, source: claim, evidence: [claim], metadata: {} });
+    graph = addNode(graph, { id: "figure", type: "figure", label: "Figure 1", source: figure, evidence: [figure], metadata: {} });
+    graph = addEdge(graph, { source: "claim", target: "figure", type: "generated-related", provenance: "generated", evidence: [claim, figure], reason: "Generated candidate" });
+    const packet: EvidencePacket = { schemaVersion: 1, id: "packet-1", paperId: "paper", claimNodeId: "claim", canonicalClaimText: claim.text!, claimEvidence: claim, supportingEvidence: [figure], reportedResults: [], figures: [figure], tables: [], methods: [], experiments: [], datasetsAndBenchmarks: [], comparators: [], limitations: [], citations: [], relationships: graph.edges, supportStatus: "generated candidate relationship", missingSources: [], graph };
+    expect((await pinEvidencePacket(repository, manifest, packet)).status).toBe("pinned");
+    const [collection] = await repository.listCollections();
+    expect(collection.evidenceArtifacts[0]).toMatchObject({ type: "evidence-chain", generated: true, sourceEvidence: [claim, figure] });
   });
 });

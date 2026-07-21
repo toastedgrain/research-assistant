@@ -53,6 +53,29 @@ describe("challenge scoring", () => {
     expect(lifecycleAfterScore({ correct: true })).toBe("complete");
   });
 
+  it.each([0, 1, 2, 3])("scores the exact stable choice id when the answer is at position %i", (correctPosition) => {
+    const challenge = multipleChoice();
+    const choices = ["choice-a", "choice-b", "choice-c", "choice-d"].map((id) => ({ id, label: id.toUpperCase() }));
+    challenge.payload.choices = choices;
+    challenge.answer.correctChoiceIds = [choices[correctPosition].id];
+    challenge.answer.relationships = [{
+      id: `choice:${choices[correctPosition].id}`,
+      evidenceIds: [target.id],
+      reason: target.reason,
+    }];
+
+    for (const [position, choice] of choices.entries()) {
+      expect(scoreChallenge(challenge, { kind: "choice", choiceIds: [choice.id] })?.correct)
+        .toBe(position === correctPosition);
+    }
+  });
+
+  it("does not upgrade a display label or multiple selections into a single-answer match", () => {
+    const challenge = multipleChoice();
+    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["Values"] })?.correct).toBe(false);
+    expect(scoreChallenge(challenge, { kind: "choice", choiceIds: ["tokens", "pages"] })?.correct).toBe(false);
+  });
+
   it("returns the expected zero-based evidence page and bbox", () => {
     expect(
       evidenceTarget(

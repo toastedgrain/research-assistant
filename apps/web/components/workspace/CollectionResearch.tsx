@@ -13,8 +13,9 @@ import { buildConstellation, buildFigureTimeline, buildLineage, buildPaperTimeli
 import { IndexedDbWorkspaceRepository } from "../../lib/workspace/indexed-db";
 import type { ResearchCollection } from "../../lib/workspace/types";
 import CollectionLearning from "./CollectionLearning";
+import TensionInspector from "../evidence-graph/TensionInspector";
 
-type ResearchTab = "search" | "benchmarks" | "lineage" | "timeline" | "constellation" | "networks" | "learn";
+type ResearchTab = "search" | "benchmarks" | "lineage" | "timeline" | "constellation" | "networks" | "tensions" | "learn";
 const TABS: Array<{ id: ResearchTab; label: string }> = [
   { id: "search", label: "Search" },
   { id: "benchmarks", label: "Benchmarks" },
@@ -22,6 +23,7 @@ const TABS: Array<{ id: ResearchTab; label: string }> = [
   { id: "timeline", label: "Timeline" },
   { id: "constellation", label: "Constellation" },
   { id: "networks", label: "Authors & Methods" },
+  { id: "tensions", label: "Tensions & Agreements" },
   { id: "learn", label: "Cross-paper Learn" },
 ];
 
@@ -120,7 +122,7 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
             <p className="mt-1 text-sm opacity-60">Choose papers; only literal citation edges are present in Phase 1.</p>
             <fieldset className="mt-4 flex flex-wrap gap-2"><legend className="sr-only">Papers in lineage</legend>{paperTimeline.map((paper) => <label key={paper.paperId} className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900"><input type="checkbox" className="mr-2" checked={lineagePaperIds.has(paper.paperId)} onChange={(event) => setLineagePaperIds((current) => { const next = new Set(current); event.target.checked ? next.add(paper.paperId) : next.delete(paper.paperId); return next; })} />{paper.title}</label>)}</fieldset>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">{lineage.nodes.map((node) => <article key={node.id} className="rounded border border-neutral-300 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"><h3 className="font-medium">{node.label}</h3><a href={paperHref(String(node.metadata.paperId))} className="mt-2 inline-block text-sm text-sky-700 hover:underline dark:text-sky-300">Read source →</a></article>)}</div>
-            {lineage.edges.length > 0 ? <ul className="mt-4 space-y-2">{lineage.edges.map((edge) => <li key={`${edge.source}-${edge.target}-${edge.type}`} className={`border-l-2 pl-3 text-sm ${edge.generated ? "border-dashed border-violet-500" : "border-sky-500"}`}>{edge.type === "cites" ? "Literal citation" : "Generated relationship"}: {lineage.nodes.find(({ id }) => id === edge.source)?.label} → {lineage.nodes.find(({ id }) => id === edge.target)?.label}</li>)}</ul> : <p className="mt-5 text-sm opacity-55">Select connected papers to see literal lineage edges.</p>}
+            {lineage.edges.length > 0 ? <ul className="mt-4 space-y-2">{lineage.edges.map((edge) => <li key={edge.id} className={`border-l-2 pl-3 text-sm ${edge.provenance === "generated" ? "border-dashed border-violet-500" : edge.provenance === "user" ? "border-dotted border-amber-600" : "border-sky-500"}`}><p><strong>{edge.type === "cites" ? "Literal citation" : `${edge.provenance} ${edge.type}`}</strong>: {lineage.nodes.find(({ id }) => id === edge.source)?.label} → {lineage.nodes.find(({ id }) => id === edge.target)?.label}</p><details className="mt-1"><summary className="cursor-pointer text-xs text-sky-700 dark:text-sky-300">Why are these connected?</summary><p className="mt-1 text-xs opacity-65">{edge.reason ?? (edge.type === "cites" ? "A resolved citation marker establishes this relationship." : "No additional relationship provenance is available.")}</p>{edge.evidence.length > 0 && <ul className="mt-1 flex flex-wrap gap-2">{edge.evidence.map((source) => <li key={sourceEvidenceHref(source)}><a href={sourceEvidenceHref(source)} className="text-xs text-sky-700 underline decoration-dotted dark:text-sky-300">Source p.{source.page + 1}</a></li>)}</ul>}</details></li>)}</ul> : <p className="mt-5 text-sm opacity-55">Select connected papers to see literal lineage edges.</p>}
           </section>
         ) : null}
 
@@ -165,6 +167,7 @@ export default function CollectionResearch({ collectionId }: { collectionId: str
         ) : null}
 
         {tab === "learn" ? <CollectionLearning collection={collection} analyses={analyses} citationModel={citationModel} /> : null}
+        {tab === "tensions" ? <TensionInspector analyses={analyses} /> : null}
       </div>
     </main>
   );

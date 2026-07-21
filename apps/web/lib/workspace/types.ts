@@ -28,6 +28,16 @@ export interface BoardEdge {
   type: "user-connected";
 }
 
+export interface WorkspaceEvidenceArtifact {
+  id: string;
+  type: "evidence-packet" | "evidence-chain" | "tension" | "interpretation";
+  label: string;
+  sourceEvidence: SourceEvidence[];
+  generated: boolean;
+  createdAt: number;
+  payload: unknown;
+}
+
 export interface ResearchCollection {
   version: 2;
   id: string;
@@ -40,6 +50,7 @@ export interface ResearchCollection {
   comparisons: WorkspaceComparison[];
   boardNodes: BoardNode[];
   boardEdges: BoardEdge[];
+  evidenceArtifacts: WorkspaceEvidenceArtifact[];
 }
 
 export interface WorkspaceRepository {

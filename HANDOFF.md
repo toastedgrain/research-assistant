@@ -312,8 +312,43 @@ against a 30s target.
 - **Synthetic PDFs are not fixtures for block-grouping behaviour.** PyMuPDF groups
   hand-built pages differently from LaTeX output. Two tests here passed against synthetic
   PDFs while the real paper still failed. Test that class of logic on raw geometry.
-- **This repo names no AI vendor** — not in filenames, contents, or commit messages. Agent
-  guidance goes in `AGENTS.md`; harness-specific files stay untracked via
-  `.git/info/exclude`.
+- **Core AI contracts name no vendor.** Runtime adapters and ignored local env may name the
+  selected provider/model; components depend only on `LearningGenerationProvider`.
+  Harness-specific files stay untracked.
 - Commit history is written to be read: each phase commit explains the reasoning, and
   `01335e3` in particular documents four defects that only real papers exposed.
+
+---
+
+## Stage 7 — local visual learning and evidence architecture (2026-07-21)
+
+The optional learning layer is now a provider-neutral, server-mediated structured generation
+system. `LearningGenerationProvider` owns availability, visual-spec generation, visual-game
+generation, evidence-graph candidates, cross-paper inspection, and investigator interpretation.
+The current local adapter is configured only through ignored environment variables; components
+do not import the runtime SDK.
+
+Runtime safety is layered: bounded `ResearchContext` input, Zod/JSON Schema output, stable IDs,
+canonical evidence IDs, endpoint validation, literal-label checks for scored nodes, explicit
+ordering checks for scored flows, generated-edge provenance, one repair attempt, deterministic
+fallback, then fail closed. A live Attention probe initially invented generic Input/Output nodes;
+the validator rejected them, and the repaired result contained only the literal first/second
+encoder sub-layers.
+
+The shared `ResearchGraph` is now evidence-native. Conservative canonical claim passages link to
+directly referenced figures/tables/citations, source-described experiment/method/result/dataset
+nodes, and nearby qualifications. `EvidencePacket` powers Trace Claim, the visual evidence graph,
+the investigator, evidence-reasoning games, persisted evidence chains, and candidate cross-paper
+tensions. Literal, generated, and user-created edges are distinct in data and UI.
+
+Current automated verification: **53 web test files / 251 tests**, **152 Python tests**,
+TypeScript clean, and the Next.js production build passes. Live Reader, Explore, Reflow,
+Workspace, AI-status, generated-game, evidence-graph, and investigator endpoints responded. The
+configured local model produced a validated Build Flow and a source-cited investigator result;
+insufficient packets returned insufficient evidence. With the local service stopped, AI status
+failed closed while Reader still returned 200, then recovered after restart.
+
+Visual browser acceptance remains **BLOCKED** because the browser runtime exposed no browser
+session. Do not convert HTTP/model checks into a visual-completion claim. Keyboard focus order,
+drag feel, actual graph animation, narrow viewport behavior, and the end-to-end click walkthrough
+must still be run in a real browser.

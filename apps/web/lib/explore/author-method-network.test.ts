@@ -31,7 +31,7 @@ describe("literal author and method networks", () => {
       "Ada Lovelace", "Alan Turing",
     ]);
     expect(graph.edges.filter(({ type }) => type === "coauthored")).toHaveLength(1);
-    expect(graph.edges.find(({ type }) => type === "coauthored")?.evidence).toMatchObject({
+    expect(graph.edges.find(({ type }) => type === "coauthored")?.evidence[0]).toMatchObject({
       kind: "citation", page: 0,
     });
   });

@@ -122,6 +122,13 @@ function CollectionCard({
         </section>
       )}
 
+      {collection.evidenceArtifacts.length > 0 && (
+        <section className="mt-5" aria-labelledby={`chains-${collection.id}`}>
+          <h2 id={`chains-${collection.id}`} className="text-xs font-semibold uppercase tracking-wide opacity-60">Evidence chains and packets</h2>
+          <ul className="mt-2 space-y-3">{collection.evidenceArtifacts.map((artifact) => <li key={artifact.id} className={`rounded border p-3 text-sm ${artifact.generated ? "border-dashed border-violet-500" : "border-sky-300 dark:border-sky-800"}`}><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{artifact.label}</span><span className="rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase">{artifact.type}</span>{artifact.generated && <span className="rounded border border-violet-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-700 dark:text-violet-300">Contains generated relationships</span>}</div><p className="mt-1 text-xs opacity-60">Canonical source references are retained separately from generated interpretation.</p><ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">{artifact.sourceEvidence.slice(0, 8).map((source) => { const validation = validateSourceEvidence(source, manifests.get(source.paperId) ?? null); return <li key={`${artifact.id}-${sourceEvidenceHref(source)}`}>{validation.status === "resolved" ? <a href={sourceEvidenceHref(source)} className="text-xs text-sky-700 underline decoration-dotted dark:text-sky-300">{source.kind} p.{source.page + 1}</a> : <span className="text-xs text-amber-700 dark:text-amber-300">Source unavailable</span>}</li>; })}</ul></li>)}</ul>
+        </section>
+      )}
+
       <nav className="mt-5 flex gap-2 border-t border-neutral-200 pt-4 text-sm dark:border-neutral-800" aria-label={`${collection.name} workspace tools`}>
         <a href={`/workspace/collections/${collection.id}/board`} className="rounded border px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">Open pinboard</a>
         <a href={`/workspace/collections/${collection.id}/compare`} className="rounded border px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800">Compare evidence</a>

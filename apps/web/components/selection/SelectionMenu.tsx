@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenText, BrainCircuit, Copy, LocateFixed, Pin, Route, Sparkles, X } from "lucide-react";
+import { BookOpenText, BrainCircuit, Copy, GitBranch, LocateFixed, Pin, Route, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { SelectionAnchor } from "../../lib/selection/dom";
 
@@ -10,6 +10,7 @@ interface Props {
   onPin?: () => void;
   onContext: () => void;
   onTrace: () => void;
+  onTraceClaim?: () => void;
   onUnderstand?: () => void;
   onVisualize?: () => void;
   onPlay?: () => void;
@@ -26,6 +27,7 @@ export default function SelectionMenu({
   onPin,
   onContext,
   onTrace,
+  onTraceClaim,
   onUnderstand,
   onVisualize,
   onPlay,
@@ -81,6 +83,12 @@ export default function SelectionMenu({
         <Route aria-hidden="true" size={15} />
         Trace
       </button>
+      {onTraceClaim && (
+        <button type="button" className={actionClass} onClick={onTraceClaim} title="Trace this scientific claim through its source evidence">
+          <GitBranch aria-hidden="true" size={15} />
+          Trace Claim
+        </button>
+      )}
       {onUnderstand && (
         <button type="button" className={actionClass} onClick={onUnderstand} title="Open source-led understanding support">
           <BrainCircuit aria-hidden="true" size={15} />

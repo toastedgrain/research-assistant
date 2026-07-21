@@ -20,40 +20,75 @@ export type ResearchGraphNodeType =
   | "paper"
   | "section"
   | "concept"
+  | "claim"
+  | "evidence"
+  | "passage"
   | "figure"
   | "table"
+  | "equation"
+  | "algorithm"
   | "author"
   | "method"
-  | "dataset";
+  | "experiment"
+  | "result"
+  | "dataset"
+  | "benchmark"
+  | "citation"
+  | "limitation";
 
 export type ResearchGraphEdgeType =
   | "cites"
   | "contains"
   | "mentions"
   | "uses"
+  | "supports"
+  | "reports-result"
+  | "produced-by"
+  | "uses-method"
+  | "evaluated-on"
+  | "compares-against"
+  | "extends"
+  | "qualifies"
+  | "contradicts-candidate"
+  | "agrees-candidate"
   | "user-connected"
   | "coauthored"
   | "describes-method"
   | "generated-related";
 
+export type ResearchGraphProvenance = "literal" | "generated" | "user";
+
 export interface ResearchGraphNode {
   id: string;
   type: ResearchGraphNodeType;
   label: string;
+  description?: string;
   /** Where this node came from in a real document, so it stays traceable. */
   source?: SourceEvidence;
+  /** All source locations for compound nodes such as experiments. */
+  evidence?: SourceEvidence[];
+  provenance?: ResearchGraphProvenance;
   metadata: Record<string, unknown>;
 }
 
 export interface ResearchGraphEdge {
+  id: string;
   source: string;
   target: string;
   type: ResearchGraphEdgeType;
-  /** True only for inferred relationships. Renderers must not draw these as citations. */
-  generated?: boolean;
-  /** Literal source for relationships such as observed coauthorship. */
-  evidence?: SourceEvidence;
+  provenance: ResearchGraphProvenance;
+  /** Kept for older renderers; it is always derived from provenance. */
+  generated: boolean;
+  evidence: SourceEvidence[];
+  reason?: string;
 }
+
+export type ResearchGraphEdgeInput = Omit<ResearchGraphEdge, "id" | "provenance" | "generated" | "evidence"> & {
+  id?: string;
+  provenance?: ResearchGraphProvenance;
+  generated?: boolean;
+  evidence?: SourceEvidence | SourceEvidence[];
+};
 
 export interface ResearchGraph {
   nodes: ResearchGraphNode[];
@@ -86,21 +121,31 @@ export function addNodes(graph: ResearchGraph, nodes: ResearchGraphNode[]): Rese
  * Identity is (source, target, type), so a citation and a user-drawn line between the
  * same two papers are two edges, not one.
  */
-export function addEdge(graph: ResearchGraph, edge: ResearchGraphEdge): ResearchGraph {
+export function addEdge(graph: ResearchGraph, edge: ResearchGraphEdgeInput): ResearchGraph {
   if (!hasNode(graph, edge.source) || !hasNode(graph, edge.target)) return graph;
+
+  const provenance = edge.provenance ?? (edge.generated || edge.type === "generated-related" || edge.type.endsWith("-candidate") ? "generated" : edge.type === "user-connected" ? "user" : "literal");
+  const normalized: ResearchGraphEdge = {
+    ...edge,
+    id: edge.id ?? `edge:${edge.type}:${edge.source}:${edge.target}`,
+    provenance,
+    generated: provenance === "generated",
+    evidence: edge.evidence ? (Array.isArray(edge.evidence) ? edge.evidence : [edge.evidence]) : [],
+  };
 
   const exists = graph.edges.some(
     (existing) =>
-      existing.source === edge.source &&
-      existing.target === edge.target &&
-      existing.type === edge.type,
+      existing.source === normalized.source &&
+      existing.target === normalized.target &&
+      existing.type === normalized.type &&
+      existing.provenance === normalized.provenance,
   );
   if (exists) return graph;
 
-  return { nodes: graph.nodes, edges: [...graph.edges, edge] };
+  return { nodes: graph.nodes, edges: [...graph.edges, normalized] };
 }
 
-export function addEdges(graph: ResearchGraph, edges: ResearchGraphEdge[]): ResearchGraph {
+export function addEdges(graph: ResearchGraph, edges: ResearchGraphEdgeInput[]): ResearchGraph {
   return edges.reduce(addEdge, graph);
 }
 

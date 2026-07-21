@@ -6,6 +6,7 @@ import { loadPaperAnalysis, type PaperAnalysis } from "../../lib/explore/analysi
 import FigureAtlas from "./FigureAtlas";
 import PaperMap from "./PaperMap";
 import CitationGraph from "./CitationGraph";
+import EvidenceCoverage from "../evidence-graph/EvidenceCoverage";
 
 /**
  * Host for the exploration surfaces (§25).
@@ -16,9 +17,10 @@ import CitationGraph from "./CitationGraph";
  * "never render a dead affordance" rule the reader follows.
  */
 
-export type ExploreTab = "figures" | "paper-map" | "citations" | "research";
+export type ExploreTab = "evidence" | "figures" | "paper-map" | "citations" | "research";
 
 const TABS: { key: ExploreTab; label: string }[] = [
+  { key: "evidence", label: "Evidence Graph" },
   { key: "figures", label: "Figures" },
   { key: "paper-map", label: "Paper Map" },
   { key: "citations", label: "Citations" },
@@ -28,7 +30,7 @@ const TABS: { key: ExploreTab; label: string }[] = [
 export default function ExploreShell({ digest }: { digest: string }) {
   const [analysis, setAnalysis] = useState<PaperAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<ExploreTab>("figures");
+  const [tab, setTab] = useState<ExploreTab>("evidence");
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +101,7 @@ export default function ExploreShell({ digest }: { digest: string }) {
       </header>
 
       <main>
+        {tab === "evidence" && <EvidenceCoverage analysis={analysis} />}
         {tab === "figures" && <FigureAtlas analysis={analysis} digest={digest} />}
         {tab === "paper-map" && <PaperMap analysis={analysis} digest={digest} />}
         {tab === "citations" && <CitationGraph analysis={analysis} digest={digest} />}

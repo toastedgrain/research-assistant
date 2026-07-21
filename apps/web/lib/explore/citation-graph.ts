@@ -121,7 +121,13 @@ export function addPaperToCitationGraph(
         refId: reference.ref_id,
       },
     });
-    graph = addEdge(graph, { source: sourceNodeId, target: targetNodeId, type: "cites" });
+    graph = addEdge(graph, {
+      source: sourceNodeId,
+      target: targetNodeId,
+      type: "cites",
+      evidence: citationEvidence(paperIdOf(analysis.manifest), reference, occurrences[0].page),
+      reason: "The paper contains this literal citation marker and resolved reference.",
+    });
 
     const trail: CitationTrail = {
       sourceNodeId,

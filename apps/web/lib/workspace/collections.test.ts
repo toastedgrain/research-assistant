@@ -30,6 +30,7 @@ describe("collection mutations", () => {
       comparisons: [],
       boardNodes: [],
       boardEdges: [],
+      evidenceArtifacts: [],
     });
   });
 

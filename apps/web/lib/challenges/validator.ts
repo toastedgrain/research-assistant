@@ -121,8 +121,12 @@ function validateAnswer(challenge: Extract<ChallengeSpec, { mode: "scored" }>, e
   const items = orderingPayloadItems(challenge);
   if (challenge.answer.kind === "choice" && choices) {
     const choiceIds = new Set(choices.map((choice) => choice.id));
-    if (challenge.answer.correctChoiceIds.length === 0 || challenge.answer.correctChoiceIds.some((id) => !choiceIds.has(id))) {
+    const correctIds = challenge.answer.correctChoiceIds;
+    if (correctIds.length === 0 || new Set(correctIds).size !== correctIds.length || correctIds.some((id) => !choiceIds.has(id))) {
       errors.push("Expected answer must reference an available choice.");
+    }
+    if (challenge.payload.kind === "multiple-choice" && !challenge.payload.multiple && correctIds.length !== 1) {
+      errors.push("Single-answer multiple choice requires exactly one correct choice id.");
     }
     validateRelationships(
       challenge.answer.relationships,

@@ -46,7 +46,7 @@ describe("edges", () => {
 
   it("connects two existing nodes", () => {
     const graph = addEdge(twoPapers, { source: "a", target: "b", type: "cites" });
-    expect(graph.edges).toEqual([{ source: "a", target: "b", type: "cites" }]);
+    expect(graph.edges).toEqual([expect.objectContaining({ source: "a", target: "b", type: "cites", provenance: "literal", generated: false, evidence: [] })]);
   });
 
   it("refuses an edge with a missing endpoint", () => {

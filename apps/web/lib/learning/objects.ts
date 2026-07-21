@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 const DEFINITION = /\b(?:we\s+)?(?:define|call|refer to)\s+(?:the\s+)?["“]?([\p{L}][\p{L}\p{N} _-]{1,80}?)["”]?\s+(?:as|to be)\b/iu;
-const CLAIM = /\b(?:we|results?|experiments?)\s+(?:show|find|demonstrate|indicate)\b/i;
+const CLAIM = /\b(?:(?:we|(?:(?:our|the)\s+)?results?)\s+(?:show|find|observe|demonstrate|indicate|conclude)|our\s+(?:method|approach|model)\s+(?:improves?|outperforms?)|we\s+outperform)\b/i;
 
 function slug(value: string): string {
   return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");

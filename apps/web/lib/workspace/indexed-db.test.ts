@@ -38,6 +38,14 @@ describe("IndexedDbWorkspaceRepository", () => {
     expect((await repo.listCollections()).map(({ id }) => id)).toEqual(["new", "old"]);
   });
 
+  it("round-trips evidence artifacts without upgrading generated interpretation to source", async () => {
+    const repo = repository();
+    const source = { paperId: "paper-a", page: 0, kind: "passage" as const, text: "Canonical source" };
+    const collection = { ...createCollection("Chains", { id: "chains", now: 100 }), evidenceArtifacts: [{ id: "chain-1", type: "interpretation" as const, label: "Generated interpretation", sourceEvidence: [source], generated: true, createdAt: 100, payload: { text: "Interpretation", generated: true } }] };
+    await repo.saveCollection(collection);
+    expect((await repo.getCollection("chains"))?.evidenceArtifacts[0]).toMatchObject({ generated: true, sourceEvidence: [source] });
+  });
+
   it("upserts and deletes only the requested collection", async () => {
     const repo = repository();
     await repo.saveCollection(createCollection("First", { id: "one", now: 100 }));

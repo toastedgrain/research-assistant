@@ -3,6 +3,7 @@ import type { Manifest } from "../manifest";
 import { createCollection } from "../workspace/collections";
 import type { PaperAnalysis } from "./analysis";
 import { addPaperToCitationGraph, emptyCitationGraph } from "./citation-graph";
+import { addEdge } from "./graph";
 import { IndexedCrossPaperContextProvider } from "./cross-paper-provider";
 
 const makeAnalysis = (paperId: string, title: string, arxivId: string): PaperAnalysis => ({
@@ -51,7 +52,7 @@ describe("cross-paper context provider", () => {
 
   it("returns only loaded literal graph neighbours", () => {
     const graph = addPaperToCitationGraph(addPaperToCitationGraph(emptyCitationGraph(), first), second);
-    graph.graph.edges.push({ source: "arxiv:2101.00001", target: "arxiv:2101.00002", type: "cites" });
+    graph.graph = addEdge(graph.graph, { source: "arxiv:2101.00001", target: "arxiv:2101.00002", type: "cites" });
     const provider = new IndexedCrossPaperContextProvider([first, second], [], graph);
     expect(provider.getConnectedPapers("a".repeat(64)).map(({ paperId }) => paperId)).toEqual([
       "b".repeat(64),

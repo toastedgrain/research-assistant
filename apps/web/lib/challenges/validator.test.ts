@@ -103,6 +103,16 @@ describe("discriminated challenge validation", () => {
     );
   });
 
+  it("requires exactly one stable correct id for a single-answer multiple choice", () => {
+    const { index } = passageTarget();
+    const challenge = scoredChoice();
+    if (challenge.mode !== "scored" || challenge.answer.kind !== "choice") throw new Error("Expected a scored choice fixture.");
+    challenge.answer.correctChoiceIds = ["values", "pages"];
+    expect(validateChallenge(challenge, createEvidenceResolver([index])).errors).toContain(
+      "Single-answer multiple choice requires exactly one correct choice id.",
+    );
+  });
+
   it("allows Explore to remain unscored without an expected answer", () => {
     const { index, target } = passageTarget();
     const explore: ChallengeSpec = {

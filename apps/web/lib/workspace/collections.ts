@@ -22,11 +22,12 @@ export function createCollection(
     comparisons: [],
     boardNodes: [],
     boardEdges: [],
+    evidenceArtifacts: [],
   };
 }
 
 /** Upgrade durable browser records without resetting or splitting the canonical store. */
-export function normalizeCollection(value: ResearchCollection | (Omit<ResearchCollection, "version" | "boardEdges"> & { version: 1 })): ResearchCollection {
+export function normalizeCollection(value: ResearchCollection | (Omit<ResearchCollection, "version" | "boardEdges" | "evidenceArtifacts"> & { version: 1 | 2; boardEdges?: ResearchCollection["boardEdges"]; evidenceArtifacts?: ResearchCollection["evidenceArtifacts"] })): ResearchCollection {
   const canonicalSource = (source: SourceEvidence): SourceEvidence => ({ ...source, paperId: canonicalPaperId(source.paperId) });
   return {
     ...value,
@@ -37,6 +38,7 @@ export function normalizeCollection(value: ResearchCollection | (Omit<ResearchCo
     comparisons: value.comparisons.map((comparison) => ({ ...comparison, evidence: comparison.evidence.map(canonicalSource) })),
     boardNodes: value.boardNodes.map((node) => node.source ? { ...node, source: canonicalSource(node.source) } : node),
     boardEdges: value.version === 2 ? value.boardEdges ?? [] : [],
+    evidenceArtifacts: (value.evidenceArtifacts ?? []).map((artifact) => ({ ...artifact, sourceEvidence: artifact.sourceEvidence.map(canonicalSource) })),
   };
 }
 
