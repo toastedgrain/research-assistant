@@ -21,11 +21,12 @@ Two other documents own decisions:
 ### DEV A PHASE CHECKPOINT
 
 Phase: 2 - Learning / challenge foundation
-Dev A commit: `db1fdc54a77e981d29be07b56b58917bcfb225d9`
+Dev A implementation commit: `db1fdc54a77e981d29be07b56b58917bcfb225d9`
+Dev A Phase 2 completion commit: `69bf2ff36a3dc2ca1001aa4cf8032f1414393bc6`
 Branch: `phase-1-a`
 Tests: 76 web tests passed; 151 Python tests passed.
 Build: TypeScript typecheck and production web build passed.
-Known limitations: the in-app browser was unavailable in this session, so the real-paper visual walkthrough remains a follow-up verification. Evidence Hunt is otherwise covered by deterministic source-resolution, evaluator, renderer, return-state, and keyboard-entry tests.
+Known limitations: no browser surface is available in this CLI environment, so a manual real-paper walkthrough is unmeasured. The substitute verification is the deterministic source-resolution, evaluator, renderer, return-state, keyboard-entry, TypeScript, Python, and production-build checks listed above; it does not claim visual confirmation.
 
 ---
 
