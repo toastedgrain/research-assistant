@@ -1,1410 +1,479 @@
-# Marginalia
+Marginalia
+See how research works — not just what it says.
 
-### Research papers were designed to be printed. Marginalia makes them interactive.
+Scientific knowledge is published as networks of claims, evidence, figures, concepts, and citations, but consumed as flat PDFs.
 
-Marginalia is an evidence-grounded research environment for reading, understanding, exploring, and learning from scientific papers.
+Marginalia makes those hidden relationships interactive. Researchers can trace claims back to evidence, open referenced figures without losing their place, follow concepts through a paper, explore citation networks, compare research visually, and learn through interactions grounded in the original source.
 
-Instead of replacing papers with AI summaries, Marginalia keeps the **original research as the source of truth** and builds an interactive layer around it:
+Live Demo — Core Research Experience: [LIVE WEBSITE URL]
+Video Demo — Full Experience + Local AI: [YOUTUBE DEMO URL]
+GitHub — Source + Local Setup: https://github.com/toastedgrain/research-assistant
 
-**Read → Trace → Visualize → Build → Investigate → Explore**
+Judging Note — Local AI: Marginalia's Visualize and generated interactive learning games currently use local inference through Ollama and are therefore not available in the hosted deployment. The live application demonstrates Marginalia's deterministic research, evidence, navigation, graph, and workspace systems. The <3-minute demo video shows the complete experience, including Visualize and interactive learning games.
 
-A figure mentioned three pages away can open beside the paragraph discussing it. A difficult concept can become an animated diagram. A scientific claim can be traced through its evidence, experiment, results, and citations. A learner can reconstruct a methodology instead of answering another generic multiple-choice question.
+Recommended judging path
 
-The core philosophy is simple:
+Watch the <3-minute demo first. It shows the complete Marginalia experience, including local AI generation. Then use the live deployment to directly explore the core research and evidence systems.
 
-> **Do not replace research with a summary. Reorganize, connect, expose, and interact with the original evidence.**
+Run Marginalia Locally
+git clone https://github.com/toastedgrain/research-assistant.git
+cd research-assistant
 
-And for AI:
+Install dependencies:
 
-> **AI can interpret the research, but it never becomes the authority. The paper remains the authority.**
+pnpm install
+
+[INSERT VERIFIED REMAINING SETUP COMMANDS]
+
+Local setup enables the complete Marginalia experience, including Ollama-powered Visualize and interactive learning features.
+
+What is Marginalia?
+
+Marginalia is an evidence-first research environment for reading, understanding, and exploring scientific papers.
+
+It started with a small frustration I kept having as a student trying to read research.
+
+A paper would say:
+
+“As shown in Figure 3…”
+
+So I would leave the paragraph, scroll through several pages, find Figure 3, try to understand it, scroll back, lose my place, and repeat the process a few minutes later.
+
+Citations were even more fragmented. One sentence could depend on years of previous work, yet following that connection meant leaving the paper entirely.
+
+And whenever I couldn't understand something, the increasingly obvious solution was:
+
+Give the PDF to AI and ask for a summary.
+
+But I didn't want to avoid the paper.
+
+I wanted to understand it.
+
+The figures, experiments, definitions, citations, and evidence I needed were already there. The problem was that their relationships were trapped inside a document designed to be read page by page.
+
+Marginalia started by making one of those relationships interactive:
+
+Click “Figure 3.” See Figure 3. Keep reading.
+
+Then I started asking what else a research paper was hiding.
+
+A citation is a connection to another paper.
+
+A claim is a connection to evidence.
+
+A concept might begin in the introduction, become formal in the methodology, appear visually in a figure, and finally be tested in an experiment.
+
+A paper isn't really a stack of pages.
+
+It's an evidence network presented as one.
+
+Marginalia reconstructs that network.
+
+Why Marginalia?
+
+The problem is bigger than navigating figures.
+
+Researchers constantly reconstruct context manually:
+
+Claim ─────────────→ Evidence
+  │                    │
+  │                    ├── Figure
+  │                    ├── Table
+  │                    └── Experiment
+  │
+  ├── Concept ──────→ Definition
+  │
+  └── Citation ─────→ Another Paper
+                           │
+                           └── Another Evidence Network
+
+Marginalia turns those relationships into things you can actually interact with.
+
+And that creates a different approach to AI for research.
+
+Most AI research tools follow roughly this model:
+
+Paper
+  ↓
+AI
+  ↓
+Summary / Answer
+
+Marginalia deliberately does not.
+
+Its model is:
+
+                    ┌── Figures
+                    ├── Tables
+                    ├── Claims
+Paper ── Evidence ──┼── Concepts
+                    ├── Citations ──→ Papers
+                    └── Experiments
+                           ↑
+                           │
+                      AI assists
+
+AI sits around the evidence, not between the researcher and the evidence.
+
+The paper remains the authority.
+
+That is the central idea behind Marginalia.
+
 
 ---
 
-# Why Marginalia?
+# What You Can Do
 
-Research PDFs contain some of the world's most important knowledge, but they are still distributed through an interface designed primarily for printing.
+## 1. Read Research Without Losing Your Place
 
-Reading a technical paper often means constantly:
+Marginalia understands references embedded in the paper.
 
-* scrolling between a figure and the paragraph referencing it,
-* searching for definitions introduced pages earlier,
-* navigating dense citation chains,
-* interpreting complex experimental pipelines,
-* understanding how claims connect to evidence,
-* comparing results across papers,
-* decoding two-column layouts,
-* and manually reconstructing how concepts evolve throughout a paper.
+When the text says **Figure 1**, the reader can surface the extracted Figure 1 directly in the reading context.
 
-AI summarizers solve a different problem.
+The same infrastructure connects:
 
-They often remove the reader from the primary research.
+* figures
+* tables
+* algorithms
+* captions
+* sections
+* citations
+* source passages
 
-Marginalia takes the opposite approach.
-
-It asks:
-
-> **What if a scientific paper behaved like a modern interactive knowledge environment?**
-
-The PDF remains present.
-
-The evidence remains inspectable.
-
-Marginalia adds the missing relationships.
+Instead of repeatedly navigating the geometry of a PDF, the interface navigates the relationships inside it.
 
 ---
 
-# The Core Experience
+## 2. Follow Citations as Paths, Not Dead Ends
 
-Marginalia is organized around three primary actions:
+Research rarely exists in one document.
 
-## 01 — TRACE
+Marginalia resolves supported citations and allows cited research to become part of the reading environment instead of forcing the reader to abandon their current context.
 
-Understand where knowledge comes from.
+Those relationships can then power a larger **Citation Graph**.
 
 ```text
-Claim
-  ↓
-Evidence
-  ↓
-Experiment
-  ↓
-Result
-  ↓
-Citation
-  ↓
-Prior Work
-  ↓
-Original Source
+Current Paper
+     │
+     ├──── cites ──── Paper B
+     │                   │
+     │                   └──── cites ──── Paper D
+     │
+     └──── cites ──── Paper C
 ```
 
-## 02 — EXPLORE
+Literal citations remain literal citations.
 
-Understand how research connects.
-
-```text
-Papers
-  ↓
-Concepts
-  ↓
-Methods
-  ↓
-Experiments
-  ↓
-Evidence
-  ↓
-Research Lineage
-```
-
-## 03 — LEARN
-
-Learn by interacting with the research itself.
-
-```text
-Visualize
-  ↓
-Trace
-  ↓
-Build
-  ↓
-Predict
-  ↓
-Find Evidence
-  ↓
-Verify Against Source
-```
-
-Everything eventually leads back to original evidence.
+Generated semantic relationships are represented separately rather than being disguised as bibliographic fact.
 
 ---
 
-# Demo Highlights
+## 3. See the Structure of a Paper
 
-Marginalia contains a large research workspace, but the strongest demo experience is intentionally focused around one cohesive flow:
+**Paper Map** reconstructs the paper as an explorable structure of:
 
-# READ → UNDERSTAND → TRACE → PLAY → INVESTIGATE → EXPLORE
+* sections
+* figures
+* tables
+* references
+* relationships
 
----
-
-## 1. Intelligent Research Reader
-
-Open a scientific paper normally.
-
-When the paper says:
-
-> “As shown in Figure 2…”
-
-Marginalia can open the referenced figure without forcing the reader to lose their reading position.
-
-Figure and table references become contextual research interactions rather than scavenger hunts through a PDF.
-
-Citation references can similarly connect the reader to cited research.
-
-This is the foundation of Marginalia.
+Instead of treating a 20-page document as twenty independent pages, Marginalia exposes the architecture underneath them.
 
 ---
 
-## 2. Select Difficult Research
+## 4. Browse the Evidence Visually
 
-Highlight a difficult passage.
+**Figure Atlas** turns extracted figures, tables, and algorithms into a visual index of the paper.
 
-Marginalia creates a bounded `ResearchContext` around the selected evidence.
+Researchers can skim the visual evidence, inspect captions, see where an asset occurs, and jump directly back to its source context.
 
-The contextual interaction layer can expose actions such as:
-
-```text
-Pin | Trace | Explain | Visualize | Play
-```
-
-AI is not blindly given an entire document.
-
-It receives controlled research context connected to canonical evidence.
+For visually dense research, this provides an entirely different entry point into the paper.
 
 ---
 
-# 3. Visualize — Don't Just Summarize
-
-One of the largest current improvements to Marginalia is moving away from text-first AI explanations.
-
-Instead of:
-
-```text
-Research passage
-      ↓
-AI summary
-      ↓
-A/B/C/D quiz
-```
-
-Marginalia is moving toward:
-
-```text
-Research evidence
-      ↓
-Extract structure
-      ↓
-Visualize structure
-      ↓
-Animate relationships
-      ↓
-Manipulate the concept
-      ↓
-Verify against source
-```
-
-For example, a passage describing attention could become:
-
-```text
-Query ──┐
-        ├──→ Q × Kᵀ
-Key ────┘
-             ↓
-           Scale
-             ↓
-          Softmax
-             ↓
-Value ─────→ Weighted Values
-             ↓
-           Output
-```
-
-But the diagram is not merely static.
-
-Marginalia can progressively animate:
-
-1. inputs appearing,
-2. relationships connecting,
-3. transformations activating,
-4. information flowing,
-5. outputs appearing.
-
-The goal is:
-
-> **Don't explain something with a paragraph when the learner can see it move.**
-
----
-
-# 4. Visual Learning Canvas
-
-Generated visual learning experiences use a controlled structured representation rather than allowing the model to generate arbitrary application code.
-
-Conceptually:
-
-```text
-Selected SourceEvidence
-        ↓
-Bounded ResearchContext
-        ↓
-AI / deterministic generation
-        ↓
-VisualLearningSpec
-        ↓
-Schema validation
-        ↓
-Evidence validation
-        ↓
-React renderer
-        ↓
-React Flow + SVG + Motion
-        ↓
-Interactive visual experience
-```
-
-The model determines **what should be represented**.
-
-Marginalia determines **how it can safely be rendered**.
-
-This keeps generated learning experiences inside controlled application primitives.
-
----
-
-# 5. Explore → Trace → Build → Challenge
-
-Visual learning is organized around four understandable interactions.
-
-## Explore
-
-> Show me what this is.
-
-Users can inspect components, concepts, evidence, and relationships.
-
-## Trace
-
-> Show me how this works.
-
-Marginalia progressively animates a process or evidence path.
-
-## Build
-
-> Let me reconstruct it.
-
-Users manipulate the visual structure themselves.
-
-## Challenge
-
-> Make me prove I understand it.
-
-Marginalia chooses an evidence-appropriate visual interaction.
-
-This makes the same underlying visualization reusable across multiple learning experiences.
-
----
-
-# 6. Visual Games
-
-Marginalia's game layer is being redesigned around manipulating research rather than answering generic quizzes.
-
-The original challenge architecture includes:
-
-* Quick Quiz
-* Concept Match
-* Build Figure / Diagram
-* Figure Detective
-* Evidence Hunt
-* Predict Before Reveal
-* Claim vs Evidence
-* Paper Check
-* Paper vs Paper
-* Timeline Challenge
-* Evolution Challenge
-
-Multiple choice remains available as a fallback, but it is no longer intended to dominate the learning experience.
-
----
-
-## Build the Diagram
-
-A verified process:
-
-```text
-Input → Encoder → Attention → Output
-```
-
-can become:
-
-```text
-[Attention]          [Input]
-
-       [Output]       [Encoder]
-```
-
-The learner reconstructs the system.
-
-Correct relationships receive visual feedback.
-
-Incorrect relationships remain editable and can provide source-grounded hints.
-
----
-
-## Connect Concepts
-
-Instead of selecting from dropdowns:
-
-```text
-Query          Requested information
-
-Key            Matching representation
-
-Value          Retrieved information
-```
-
-the learner physically connects related concepts.
-
-The relationships themselves become the game.
-
----
-
-## Missing Component
-
-Marginalia can remove a verified part of a process:
-
-```text
-Tokens
-  ↓
-Embedding
-  ↓
-   ?
-  ↓
-Output
-```
-
-The learner places the missing component into the structure.
-
----
-
-## Reconstruct the Experiment
-
-Experimental methodology can become an interactive pipeline:
-
-```text
-Dataset
-   ↓
-Preprocessing
-   ↓
-Model
-   ↓
-Evaluation
-   ↓
-Results
-```
-
-The learner reconstructs the experiment using source-backed steps.
-
----
-
-## Figure Detective
-
-Figure Detective uses the actual extracted research figure.
-
-When reliable figure-region evidence exists, Marginalia can:
-
-* spotlight regions,
-* zoom into relevant components,
-* ask the learner to identify a component,
-* reveal the correct source region,
-* connect the result to the authors' explanation.
-
-Marginalia does not fabricate figure regions when reliable region information is unavailable.
-
----
-
-## Evidence Hunt
-
-The PDF itself becomes the game surface.
-
-Example:
-
-> Find where the authors explain why multiple attention heads are useful.
-
-Instead of selecting A/B/C/D, the learner searches the actual research and identifies the supporting passage.
-
-The interaction teaches research navigation and evidence literacy simultaneously.
-
----
-
-## Predict Before Reveal
-
-The learner sees the experiment before the result.
-
-They may:
-
-* predict a trend,
-* rank expected outcomes,
-* place an endpoint,
-* or make another appropriate visual prediction.
-
-Then:
-
-```text
-REVEAL PAPER RESULT
-```
-
-The actual source result appears.
-
-Prediction is generally exploratory rather than falsely treated as source truth.
-
----
-
-# 7. Concept Threads
+## 5. Trace an Idea Through the Paper
 
 Research concepts rarely appear once.
 
-A concept might be:
+They are introduced, defined, referenced, visualized, tested, and discussed.
 
-introduced,
-defined,
-used in a method,
-shown in a figure,
-tested experimentally,
-and discussed again in the conclusion.
-
-Marginalia's Concept Thread system follows deterministic occurrences of a concept throughout a paper.
-
-The visual direction turns this into a research journey:
+**Concept Threads** reconstruct that path.
 
 ```text
-INTRO ●──────● DEFINITION
-                \
-                 ● METHOD
-                    \
-                     ● FIGURE
-                       \
-                        ● EXPERIMENT
-                           \
-                            ● CONCLUSION
-```
-
-Each node can return directly to the corresponding source occurrence.
-
-This makes the evolution of an idea through a paper visible.
-
----
-
-# 8. Prerequisite Maps
-
-When a learner encounters a difficult concept, Marginalia can expose the concepts needed to understand it.
-
-Example:
-
-```text
-             Multi-Head Attention
-                      │
-                  Attention
-                  /       \
-          Dot Product     Softmax
-                \          /
-                   Vectors
-```
-
-The architecture distinguishes between:
-
-* source-derived relationships,
-* AI-suggested prerequisites.
-
-Generated suggestions are never silently presented as literal paper relationships.
-
----
-
-# The Evidence Graph
-
-The newest architectural expansion makes **scientific evidence relationships** a central product primitive.
-
-Previously, evidence grounding primarily protected features such as navigation and challenge validation.
-
-Marginalia now pushes that architecture further.
-
-Scientific papers are not collections of isolated facts.
-
-They contain networks of:
-
-```text
-Claims
-  ↓
-Evidence
-  ↓
-Methods
-  ↓
-Experiments
-  ↓
-Results
-  ↓
-Citations
-  ↓
-Prior Research
-```
-
-PDFs flatten those relationships into pages.
-
-Marginalia reconstructs them.
-
----
-
-# Why Add More Evidence Architecture?
-
-This change is important because scientific research requires nuance.
-
-A model should not simply read two paragraphs and announce:
-
-> “Paper B disproves Paper A.”
-
-Scientific results can differ because of:
-
-* experimental conditions,
-* datasets,
-* metrics,
-* populations,
-* baselines,
-* methodology,
-* assumptions,
-* limitations,
-* or scope.
-
-Likewise, failing to automatically locate evidence does not mean a scientific claim is false.
-
-Marginalia therefore uses careful evidence states such as:
-
-* direct support located,
-* partial or qualified support located,
-* multiple supporting sources located,
-* no confident direct support located in indexed content,
-* evidence relationship uncertain,
-* generated candidate relationship.
-
-This preserves nuance.
-
-The system is designed to say:
-
-> “No confident direct supporting relationship was located in the currently indexed evidence.”
-
-rather than:
-
-> “This claim is false.”
-
-That distinction is fundamental to responsible research tooling.
-
----
-
-# SourceEvidence
-
-At the center of the architecture is a canonical `SourceEvidence` representation.
-
-Evidence can point back to structures such as:
-
-* paper,
-* page,
-* passage,
-* figure,
-* table,
-* equation,
-* caption,
-* citation,
-* bounding region.
-
-This allows generated experiences to remain connected to the research.
-
-A core invariant is:
-
-> **No scored generated challenge should be treated as correct unless its expected answer is grounded by resolvable SourceEvidence.**
-
-When confidence is low:
-
-> **Render less, not more.**
-
----
-
-# Evidence Graph
-
-The Evidence Graph can represent relationships such as:
-
-```text
-Paper
- │
- ├── Claim
- │     │
- │     ├── Evidence
- │     │      ├── Figure
- │     │      ├── Table
- │     │      └── Passage
- │     │
- │     ├── Method
- │     │
- │     └── Experiment
- │
- ├── Result
- │
- └── Citation
-        │
-        ↓
-      Paper
-```
-
-Relationships remain explicitly typed.
-
-Examples include:
-
-* supports
-* reports-result
-* produced-by
-* uses-method
-* evaluated-on
-* compares-against
-* cites
-* contains
-* mentions
-* qualifies
-* user-connected
-* generated-related
-
-Most importantly:
-
-```text
-LITERAL SOURCE RELATIONSHIP
-≠
-GENERATED / INFERRED RELATIONSHIP
-≠
-USER-CREATED RELATIONSHIP
-```
-
-They must never silently collapse into the same meaning.
-
----
-
-# Trace This Claim
-
-A scientific claim can become an evidence trail.
-
-Example:
-
-```text
-                         CLAIM
-                           │
-             ┌─────────────┴─────────────┐
-             ↓                           ↓
-          TABLE 2                     FIGURE 4
-             │                           │
-             └─────────────┬─────────────┘
-                           ↓
-                       EXPERIMENT
-                           │
-                         DATASET
-                           │
-                         METHOD
-                           │
-                      COMPARATORS
-                           │
-                       CITATIONS
-```
-
-Users can inspect each node and return to the original research.
-
-This turns evidence provenance into something visible and explorable.
-
----
-
-# Evidence Packets
-
-Marginalia can assemble bounded evidence packets around a research question or claim.
-
-An Evidence Packet may contain:
-
-* canonical claim text,
-* supporting evidence,
-* reported results,
-* figures,
-* tables,
-* experimental setup,
-* methodology,
-* dataset or benchmark,
-* baselines,
-* limitations,
-* citations,
-* exact source locations.
-
-This creates a safer foundation for AI interpretation.
-
-Instead of asking a model:
-
-> “Is this claim correct?”
-
-Marginalia can first construct:
-
-```text
-CLAIM
- ↓
-SUPPORTING EVIDENCE
- ↓
-EXPERIMENTAL CONDITIONS
- ↓
-COMPARATORS
- ↓
-RESULT
- ↓
-LIMITATIONS
- ↓
-CITATIONS
-```
-
-and only then request an interpretation.
-
----
-
-# Marginalia Research Investigator
-
-This evidence architecture enables a more genuinely agentic research workflow.
-
-Example question:
-
-> Why do the authors believe this method works?
-
-Marginalia does not need to immediately produce a generic AI response.
-
-The Research Investigator can instead:
-
-```text
-Locate relevant claims
-        ↓
-Inspect supporting passages
-        ↓
-Inspect referenced figures
-        ↓
-Inspect supporting tables
-        ↓
-Inspect experiment context
-        ↓
-Follow relevant citations
-        ↓
-Construct Evidence Graph
-        ↓
-Assemble Evidence Packet
-        ↓
-Generate interpretation
-        ↓
-Attach interpretation to sources
-```
-
-The interface can transparently expose progress such as:
-
-```text
-Locating claims…
-Inspecting Figure 3…
-Checking Table 2…
-Following citation [12]…
-Building evidence chain…
-Preparing interpretation…
-```
-
-No fake percentages are required.
-
----
-
-# Source vs Interpretation
-
-Marginalia explicitly separates research evidence from generated interpretation.
-
-Example:
-
-### SOURCE
-
-Table 3 reports the result under the stated evaluation conditions.
-
-### AI INTERPRETATION
-
-The reported evidence appears consistent with the authors' claim under those conditions.
-
-Generated interpretation never silently becomes source evidence.
-
----
-
-# Why?
-
-Users can challenge an interpretation by asking:
-
-```text
-WHY?
-```
-
-Marginalia does not expose private model chain-of-thought.
-
-Instead it exposes structured provenance:
-
-```text
-AI Interpretation
-       ↓
-     Claim
-       ↓
-    Evidence
-       ↓
-   Experiment
-       ↓
-     Method
-       ↓
-  Prior Paper
-       ↓
-Original Evidence
-```
-
-This provides explainability through evidence rather than hidden reasoning.
-
----
-
-# Cross-Paper Evidence
-
-Marginalia can extend evidence reasoning across multiple papers.
-
-Instead of automatically claiming contradiction, the system can surface:
-
-* possible tension,
-* differing reported result,
-* potential qualification,
-* agreement,
-* extension,
-* evidence worth comparing.
-
-The user then inspects the original evidence from both papers.
-
-This is intentionally conservative.
-
-Semantic similarity is not treated as a citation.
-
-Chronology is not treated as causation.
-
-A generated relationship is not treated as a literal relationship.
-
----
-
-# Trace to Origin
-
-Citation relationships can become research provenance.
-
-```text
-CURRENT PAPER
-      │
+Self-attention
       ↓
-   PAPER B
-      │
+Introduction
       ↓
-   PAPER A
-      │
+Definition
       ↓
- ORIGINAL METHOD
-      │
+Figure 2
       ↓
-   FIGURE 2
-      │
+Experiment
       ↓
-  EXPERIMENT
+Conclusion
 ```
 
-This transforms citation exploration from a decorative network into an explanation of where research ideas originated.
+Instead of asking an AI to summarize what a concept means, researchers can inspect how the authors themselves develop it.
 
 ---
 
-# Research Explorer
+## 6. Ask for Help Without Abandoning the Source
 
-Marginalia's Explore layer provides multi-paper research navigation.
+When a passage becomes difficult, Marginalia can create a local `ResearchContext` around it.
 
-Major surfaces include:
+That context understands the selected passage together with nearby:
 
-## Figure Atlas
+* sections
+* figures
+* tables
+* concepts
+* citations
+* source passages
 
-Browse extracted figures and tables across a paper.
+From one selection, a researcher can:
 
-Figures remain connected to:
+**Pin · Trace · Explain · Visualize · Play**
 
-* captions,
-* source pages,
-* observed mentions,
-* original paper locations.
+The goal is not to send the entire paper to a model whenever someone clicks.
 
-## Paper Map
-
-Visualize the structural organization of a paper using its sections, assets, and research relationships.
-
-## Citation Graph
-
-Explore literal citation relationships.
-
-## Citation Trail
-
-Follow citations while maintaining reading context.
-
-## Research Lineage
-
-Explore how papers and research artifacts connect over time.
-
-## Paper Timeline
-
-Explore chronological research structure where publication metadata supports it.
-
-## Figure Timeline
-
-Explore research figures across papers and time.
-
-## Constellation View
-
-Navigate broader research relationships.
-
-## Author / Method Networks
-
-Explore bounded networks while avoiding unsupported entity reconciliation or semantic inference.
+Marginalia constructs the smallest useful evidence window around the interaction.
 
 ---
 
-# Workspace
+## 7. Turn Difficult Ideas Into Visual Structures
 
-Marginalia also provides persistent research organization.
+**Visualize This** transforms suitable concepts and processes into controlled micro-diagrams.
 
-Features include:
+For example:
 
-* Collections
-* Pinboard
-* verified evidence pinning
-* cross-paper comparison
-* collection search
-* dataset / benchmark browsing
-* research notes
-* evidence persistence
+```text
+Tokens
+   ↓
+Q / K / V
+   ↓
+Attention Scores
+   ↓
+Weighted Values
+```
 
-IndexedDB provides the primary browser persistence layer for workspace state.
+Generated systems return structured diagram data rather than arbitrary executable UI.
 
-Evidence pins preserve canonical source relationships rather than requiring users to manually reconstruct unsupported source pointers.
-
----
-
-# Read Mode
-
-Read mode keeps Marginalia focused on serious research reading.
-
-It includes:
-
-* PDF reader
-* figure/table interactions
-* reverse mentions
-* citation navigation
-* side-by-side cited papers
-* keyboard navigation
-* pins and notes
-* selection actions
-* accessibility controls
-
-Games do not automatically interrupt reading.
+The application remains responsible for how that information is rendered.
 
 ---
 
-# Learn Mode
+## 8. Learn Actively From the Actual Paper
 
-Learn mode adds optional understanding tools:
+Marginalia includes an optional learning system built around source-grounded interactions.
 
-* difficulty indicators
-* concept markers
-* “I don't understand this”
-* prerequisite maps
-* Concept Threads
-* explanations
-* visualizations
-* learning activities
-* section checkpoints
+Rather than generating generic questions about the topic, the challenge engine works from research objects such as:
 
-The source paper remains visible.
+* concepts
+* claims
+* evidence
+* figures
+* tables
+* definitions
+* experiments
 
----
+These can become:
 
-# Quest Mode
-
-Quest mode turns the paper into an active learning experience.
-
-It can include:
-
-* progression checkpoints
-* visual challenges
-* concept mastery
-* Paper Quest paths
-* evidence-based activities
+* Quick Quiz
+* Concept Match
+* Evidence Hunt
+* Figure Detective
+* Build the Diagram
+* Predict Before Reveal
+* Claim vs. Evidence
+* Paper Quest
 * Paper Check
+* Paper vs. Paper
+* Timeline Challenges
 
-Quest layers interaction over the original research rather than replacing it with a separate lesson.
+Every scored challenge must pass validation and contain source evidence.
 
----
+A generated challenge without sufficient evidence is rejected rather than shown.
 
-# Reflow & Accessibility
-
-Research PDFs are often difficult accessibility surfaces.
-
-Marginalia includes a semantic Reflow experience designed around:
-
-* improved reading order,
-* typography controls,
-* spacing,
-* contrast,
-* keyboard interaction,
-* screen-reader structure,
-* reduced motion,
-* read-aloud support where available.
-
-The accessibility work is not merely cosmetic.
-
-It addresses a fundamental problem:
-
-> Scientific knowledge should not become harder to access simply because it is trapped inside a print-oriented PDF.
+**You can always go back to the paper.**
 
 ---
 
-# UI Guardian Agent
+## 9. Read in Three Different Ways
 
-Marginalia includes a dedicated architecture for an in-application **UI Guardian Agent**.
+### Read
 
-Its responsibility is not scientific reasoning.
+For researchers who want the paper with better navigation.
 
-Its goal is to protect the quality of dynamically generated interfaces.
+Minimal interruption. Figures, citations, source navigation, notes, and accessibility.
 
-The Guardian observes visual events such as:
+### Learn
 
-```text
-visual generated
-game generated
-evidence graph generated
-graph expanded
-viewport changed
-theme changed
-```
+Adds concept tracing, difficulty indicators, prerequisites, explanations, visualizations, and optional checkpoints.
 
-and follows:
+### Quest
 
-```text
-OBSERVE
-   ↓
-INSPECT
-   ↓
-DECIDE
-   ↓
-ACT
-   ↓
-VERIFY
-```
+Turns the paper into an active learning path while keeping the original research at the center.
 
-It evaluates:
+Marginalia does not force gamification onto serious reading.
 
-* graph overlap,
-* node density,
-* edge routing,
-* text overflow,
-* responsiveness,
-* visual hierarchy,
-* accessibility,
-* game UI consistency,
-* motion quality.
-
-Safe presentation improvements can be applied automatically.
-
-Scientific semantics cannot.
-
-The invariant is:
-
-> **UI improvement must never change research truth.**
-
-The Guardian may adjust:
-
-* node positions,
-* spacing,
-* edge routing,
-* label wrapping,
-* panel dimensions,
-* animation timing.
-
-It may never automatically change:
-
-* SourceEvidence,
-* correct answers,
-* claims,
-* experimental results,
-* citations,
-* literal scientific relationships.
+The reader decides how much assistance they want.
 
 ---
 
-# Local AI with Ollama
+## 10. Build a Research Workspace
 
-Marginalia's expanded visual-learning architecture supports local model execution through Ollama.
+Research does not end when one PDF closes.
 
-The current development setup uses an Ollama-hosted Gemma model for structured generation and experimentation.
+Marginalia extends outward into a workspace containing:
 
-The local model can assist with tasks such as:
-
-* visual structure generation,
-* candidate concept relationships,
-* visual-learning specifications,
-* challenge generation,
-* optional UI critique,
-* bounded evidence interpretation.
-
-Local generation provides a path for experimentation without requiring every visual interaction to incur an external API cost.
-
-However, local model output follows the same rule as any external model:
-
-> **Generated content is not source evidence.**
-
----
-
-# GPT-5.6
-
-GPT-5.6 is used where stronger reasoning can materially improve the research experience.
-
-The important point is not simply:
-
-> “Marginalia uses GPT-5.6.”
-
-The important part is what the model is asked to do.
-
-Potential GPT-5.6 responsibilities include:
-
-### Research interpretation
-
-Interpret bounded Evidence Packets rather than blindly answering from general model knowledge.
-
-### Visual structure generation
-
-Transform difficult source-grounded research into controlled `VisualLearningSpec` structures.
-
-### Challenge generation
-
-Create candidate evidence-grounded learning interactions that must pass application validation before being displayed or scored.
-
-### Research investigation
-
-Assist the Research Investigator in reasoning across bounded:
-
-* claims,
-* evidence,
-* methods,
-* experiments,
-* results,
-* citations,
-* limitations.
-
-### Cross-paper analysis
-
-Surface candidate:
-
-* agreement,
-* qualification,
-* differing results,
-* possible tension,
-
-while preserving provenance and uncertainty.
-
-GPT-5.6 is therefore used as a **reasoning layer over evidence**, not as a replacement for evidence.
-
----
-
-# ChatGPT
-
-ChatGPT has been used throughout Marginalia's product and architecture development for:
-
-* feature ideation,
-* research-workflow design,
-* evidence architecture,
-* game design,
-* UX planning,
-* system architecture,
-* development prompts,
-* acceptance criteria,
-* debugging strategy,
-* Dev A / Dev B integration review,
-* demo planning,
-* technical differentiation,
-* safety and provenance design.
-
-The project was iteratively designed through human + AI collaboration rather than generated from a single prompt.
-
----
-
-# Codex CLI
-
-Codex CLI has been a major implementation tool throughout development.
-
-It has been used to:
-
-* inspect the repository,
-* implement staged architecture work,
-* coordinate Dev A / Dev B integration,
-* modify React / TypeScript application code,
-* implement Python extraction changes,
-* build tests,
-* run TypeScript verification,
-* run production builds,
-* inspect Git state,
-* debug integration problems,
-* implement evidence contracts,
-* repair routing and source navigation,
-* improve game architecture,
-* integrate visual-learning infrastructure,
-* implement persistent application agents.
-
-Codex was given architecture-level implementation briefs rather than isolated “write this component” requests.
-
-This allowed development to remain aligned with Marginalia's system invariants.
-
----
-
-# AI-Assisted Development Workflow
-
-The development process follows approximately:
-
-```text
-Product problem
-      ↓
-ChatGPT architecture / UX exploration
-      ↓
-Detailed implementation specification
-      ↓
-Codex CLI repository inspection
-      ↓
-Implementation
-      ↓
-Tests
-      ↓
-TypeScript verification
-      ↓
-Production build
-      ↓
-Integration audit
-      ↓
-Targeted repair
-      ↓
-Acceptance QA
-```
-
-This workflow is particularly important because Marginalia contains multiple interacting systems:
-
-* PDF extraction,
-* browser PDF rendering,
-* evidence navigation,
-* visual learning,
-* games,
-* cross-paper graphs,
-* persistence,
-* accessibility,
-* AI generation.
-
-Changes cannot safely be treated as isolated UI tasks.
-
----
-
-# Previous Development Agents / Roles
-
-Marginalia's expansion was intentionally decomposed into specialized development responsibilities.
-
-## Developer A — Learning & Interaction
-
-Focused on turning research into interactive learning.
-
-Responsibilities included:
-
-* ResearchContext
-* selection intelligence
-* selection menu
-* evidence navigation
-* learning objects
-* Concept Threads
-* difficulty regions
-* prerequisite graph
-* Learn mode
-* Quest mode
-* challenge engine
-* challenge rendering
-* game types
-* mastery / progress
-* evidence-backed feedback
-* cross-paper challenge logic
-
----
-
-## Developer B — Exploration, Workspace & Accessibility
-
-Focused on turning research into a connected workspace.
-
-Responsibilities included:
-
-* Figure Atlas
-* Paper Map
+* Research Collections
 * Citation Graph
-* Citation Trail
-* cross-paper context
-* Collections
-* Pinboard
-* comparison
-* research search
-* dataset / benchmark browsing
-* lineage
-* timelines
-* constellation
-* author / method networks
-* Reflow
-* typography accessibility
-* screen-reader structure
-* read aloud
-* persistence
+* Research Lineage
+* Paper Timeline
+* Figure Timeline
+* Constellation View
+* Cross-paper Search
+* Dataset / Benchmark Browser
+* Cross-paper Comparison
+* Research Pinboard
 
-The two developers were intentionally prevented from importing each other's UI.
+Evidence can become persistent research objects rather than screenshots and disconnected notes.
 
-They integrate through shared contracts and providers.
+A pinned figure still knows which paper and page it came from.
 
----
+A passage still knows its source.
 
-# Shared Contracts
+A connection can distinguish whether it was:
 
-Important shared architecture includes:
-
-* `SourceEvidence`
-* `ResearchContext`
-* `ResearchGraph`
-* `LearningObject`
-* `ChallengeSpec`
-* persistence interfaces
-* cross-paper providers
-* evidence navigation
-
-Keeping these contracts explicit prevents the learning system, workspace, and research explorer from becoming tightly coupled.
+* present in the source,
+* inferred,
+* or manually created by the researcher.
 
 ---
 
-# Precision-First Architecture
+# Evidence Is a First-Class Data Type
 
-Marginalia deliberately prioritizes precision over recall.
+One of the most important architectural decisions in Marginalia is that evidence is not merely text displayed underneath an AI response.
 
-Examples:
+It has its own contract.
 
-```text
-Unmatched figure mention
-→ no hotspot
+```ts
+interface SourceEvidence {
+  paperId: string;
+  page: number;
 
-Unresolved citation
-→ no active citation navigation
+  kind:
+    | "passage"
+    | "figure"
+    | "table"
+    | "equation"
+    | "caption"
+    | "citation";
 
-Uncertain figure region
-→ no clickable region target
-
-Ambiguous challenge answer
-→ do not score
-
-Low-confidence evidence relationship
-→ omit or label generated/inferred
+  text?: string;
+  assetId?: string;
+  bbox?: NormalizedBBox;
+  sectionId?: string;
+}
 ```
 
-This philosophy is particularly important because Marginalia operates over scientific research.
+That object can travel through the application.
 
-An incomplete interface is preferable to a confidently misleading one.
+```text
+PDF
+ ↓
+Extraction
+ ↓
+SourceEvidence
+ ↓
+ResearchContext
+ ↓
+Learning / Exploration
+ ↓
+Interaction
+ ↓
+Back to SourceEvidence
+```
+
+This makes provenance part of the architecture rather than a citation added to the end of generated prose.
 
 ---
 
-# Extraction Architecture
+# Architecture
 
-Marginalia preserves a strict language boundary.
+Marginalia deliberately separates document truth, browser interaction, exploration, and generated intelligence.
 
-## Python owns
+```text
+                         PDF / arXiv
+                              │
+                              ▼
+                 Python Extraction Pipeline
+              figures · tables · captions
+              sections · refs · geometry
+                              │
+                              ▼
+                     Static Manifest
+                              │
+                              ▼
+                    pdf.js Research Reader
+                   /                     \
+                  /                       \
+                 ▼                         ▼
+        ResearchContext              ResearchGraph
+               │                          │
+        Learning Objects             Exploration
+               │                          │
+               ▼                          ▼
+        Challenge Engine        Maps · Atlas · Graphs
+               │                Timeline · Workspace
+               ▼
+        Validation Layer
+               │
+               ▼
+         Learn / Quest
+               │
+               └──────────────→ Source Evidence
+```
+
+The separation is intentional.
+
+**Python owns document extraction.**
+
+**TypeScript owns browser interaction.**
+
+**The learning layer owns interpretation.**
+
+**The exploration layer owns relationships and workspace navigation.**
+
+No second AI extraction pipeline was introduced simply because a model could parse the PDF again.
+
+---
+
+# Technical Stack
+
+## Frontend
+
+* **Next.js**
+* **React**
+* **TypeScript**
+* **pdf.js**
+* componentized reader, exploration, learning, game, and accessibility layers
+
+The browser owns interactions that depend on rendered PDF text, including mention detection, citation interaction, selection context, and evidence hotspots.
+
+---
+
+## Document Intelligence
+
+### Python extraction pipeline
+
+Python handles paper-intrinsic extraction:
 
 * PDF ingestion
-* figure/table/algorithm extraction
-* PNG crops
+* figure extraction
+* table extraction
+* algorithm regions
 * captions
 * sections
 * references
@@ -1412,520 +481,504 @@ Marginalia preserves a strict language boundary.
 * PDF geometry normalization
 * static manifest generation
 
-## TypeScript owns
-
-* browser `pdf.js` text interactions
-* figure/table mention detection
-* citation marker detection
-* hotspots
-* reverse mentions
-* reader interaction
-* learning state
-* visual learning
-* games
-* cross-paper client navigation
-
-This prevents duplicate extraction pipelines from drifting apart.
+The application uses a single normalized coordinate contract so evidence overlays, highlights, figures, game targets, and annotations do not independently reinterpret PDF geometry.
 
 ---
 
-# Coordinate Integrity
+## Research Graph
 
-PDF geometry is normalized exactly once.
+Marginalia uses a generalized graph representation for:
 
-Any feature involving:
+* papers
+* sections
+* concepts
+* figures
+* tables
+* authors
+* datasets
 
-* evidence highlights,
-* figure regions,
-* hotspots,
-* annotations,
-* game targets,
-* bounding boxes,
+Relationships explicitly retain their meaning:
 
-must consume the canonical coordinate model.
+```text
+cites
+contains
+mentions
+uses
+user-connected
+generated-related
+```
 
-The application must not apply an additional “helpful” coordinate conversion.
+A generated relationship is not silently presented as a citation.
 
 ---
 
-# Research Graph
+## Learning Intelligence
 
-Marginalia uses a general graph architecture instead of creating unrelated graph formats for every feature.
+Research interactions flow through:
 
-The graph can represent entities such as:
+```text
+ResearchContext
+      ↓
+Learning Objects
+      ↓
+Challenge Candidate
+      ↓
+Deterministic Builder
+        OR
+GPT-5.6 Generation
+      ↓
+ChallengeSpec
+      ↓
+Validation
+      ↓
+Renderer
+      ↓
+Evidence
+```
 
-* paper
-* section
-* concept
-* claim
-* evidence
-* figure
-* table
-* experiment
-* method
-* dataset
-* citation
+This allows deterministic and generated interactions to share the same interface.
 
-This shared graph can power:
+The renderer does not need to trust where a challenge came from.
 
-* Evidence Graph
-* Citation Graph
+It only receives a validated contract.
+
+---
+
+# OpenAI Build Week: Why Codex Was the Right Tool
+
+Marginalia was built during OpenAI Build Week using **Codex and GPT-5.6** not simply as autocomplete, but as engineering collaborators across a system with unusually strict boundaries.
+
+The challenge was not generating a large quantity of code.
+
+The challenge was changing a working PDF research system quickly **without destroying the invariants that made it trustworthy.**
+
+Marginalia contains multiple systems that need to agree:
+
+```text
+Python extraction
+        ↕
+JSON contracts
+        ↕
+TypeScript
+        ↕
+pdf.js
+        ↕
+Reader
+        ↕
+Evidence system
+        ↕
+Graphs
+        ↕
+Learning engine
+        ↕
+Workspace
+```
+
+A “small” change could easily break figure coordinates, paper identifiers, source navigation, or another feature several layers away.
+
+That made Codex particularly useful.
+
+---
+
+# How I Collaborated With Codex
+
+## Codex as an implementation agent
+
+I used Codex to work directly against the repository rather than asking for isolated code snippets and manually stitching them together.
+
+For larger features, the workflow was closer to:
+
+```text
+Product intent
+      ↓
+Architecture / invariants
+      ↓
+Codex repository inspection
+      ↓
+Implementation
+      ↓
+Tests
+      ↓
+Integration audit
+      ↓
+Fix discovered cross-feature failures
+```
+
+This mattered enormously as Marginalia expanded from a figure-first reader into a research environment.
+
+Codex could inspect existing interfaces before implementing new behavior, follow dependencies through the repository, modify multiple coordinated modules, run tests, and investigate failures in the context of the actual codebase.
+
+---
+
+## Codex as a parallel engineering system
+
+The expansion was intentionally decomposed into separate engineering domains.
+
+One development track focused on **Learning & Interaction**:
+
+* selection intelligence
+* `ResearchContext`
+* learning objects
+* concept threads
+* difficulty analysis
+* prerequisite graphs
+* micro visualizations
+* challenge engine
+* Learn mode
+* Quest mode
+
+Another focused on **Exploration, Workspace & Accessibility**:
+
+* Figure Atlas
 * Paper Map
-* Research Lineage
-* Concept relationships
-* cross-paper exploration
-* games
+* Citation Graph
+* collections
+* pinboard
+* comparison
+* lineage
+* timelines
+* constellation
+* reflow
+* accessibility
+
+The tracks communicated through explicit contracts rather than reaching into one another's UI.
+
+Codex was especially valuable here because implementation could proceed across independent feature surfaces while shared interfaces remained narrow.
 
 ---
 
-# Technology
+## Codex for integration auditing
 
-## Frontend
+One of the most useful parts of the process happened **after features existed**.
 
-* Next.js
-* React
-* TypeScript
-* PDF.js
-* React Flow / `@xyflow/react`
-* Motion
-* Mermaid where appropriate
-* Zod
-* JSON-schema-driven validation
+Instead of assuming that passing unit tests meant the product was integrated, Codex was used to audit the actual end-to-end paths.
 
-## Backend / Extraction
+That exposed problems such as inconsistent paper identifiers and source links whose URLs looked correct but did not navigate to the intended evidence inside the reader.
 
-* Python
-* PDF extraction pipeline
-* canonical manifest generation
-* normalized PDF geometry
+Those are exactly the failures that become easy to miss in a rapidly expanding codebase.
 
-## Persistence
+Codex was useful not just for:
 
-* IndexedDB
+> “Build this feature.”
 
-## AI / Generation
+but also:
 
-* GPT-5.6
-* Ollama
-* Gemma
-* structured generation
-* evidence-grounded prompting
+> “Prove that these systems actually work together.”
 
-## Development
-
-* Codex CLI
-* ChatGPT
-* Git / GitHub
-* automated TypeScript tests
-* Python tests
-* production build verification
+That distinction made Marginalia materially stronger.
 
 ---
 
-# Current Visual Improvement Priorities
+# GPT-5.6: Intelligence Behind the Interaction, Not the Source of Truth
 
-Marginalia already has a broad feature architecture.
+GPT-5.6 is used where generative reasoning actually improves the research experience.
 
-The current priority is not adding another 20 buttons.
+Examples include user-triggered:
 
-It is making the strongest existing interactions **beautiful, visual, understandable, and reliable**.
+* explanations
+* prerequisite suggestions
+* structured micro-visualizations
+* learning interactions
+* challenge generation
+* cross-paper reasoning
 
-These are the primary demo-quality UI targets.
+But the model operates behind an evidence boundary.
 
----
+A generated scored challenge passes through validation before reaching the user.
 
-## 🔴 Priority 1 — Visualize
+Validation checks include:
 
-This should be one of Marginalia's biggest wow moments.
+* Does source evidence exist?
+* Does the expected answer exist?
+* Does the page actually exist?
+* Are answer choices structurally valid?
+* Are choices distinct?
+* Is the answer ambiguous?
+* Does the interaction meet the required confidence threshold?
 
-The experience should feel like an animated scientific whiteboard.
+Failure does not mean “show the model output anyway.”
 
-Improve:
+Marginalia can fall back to a deterministic interaction or display nothing.
 
-* graph layout,
-* animation sequencing,
-* node hierarchy,
-* concise labels,
-* evidence interactions,
-* playback controls,
-* responsive behavior.
-
-The user should immediately understand:
-
-> “Marginalia turned the research into something I can see.”
-
----
-
-## 🔴 Priority 2 — Evidence Graph / Trace Claim
-
-This should become the visual centerpiece of the evidence architecture.
-
-Improve:
-
-* clear Claim node hierarchy,
-* evidence expansion,
-* method / experiment relationships,
-* edge provenance,
-* progressive disclosure,
-* smooth expansion animation,
-* exact source interaction.
-
-Avoid graph spaghetti.
-
-The initial graph should be intentionally bounded.
+That is intentional.
 
 ---
 
-## 🔴 Priority 3 — Build / Reconstruct Games
+# Multi-Agent Development
 
-These should demonstrate that Marginalia does not merely ask questions.
+Marginalia's development mirrored its architecture.
 
-Improve:
+Instead of treating one AI conversation as an infinitely long developer session, responsibilities were decomposed around explicit ownership and contracts.
 
-* draggable nodes,
-* obvious drop/connection affordances,
-* professional game canvas,
-* visual feedback,
-* retry behavior,
-* animated completion,
-* evidence reveal.
+Agents could work on:
 
-The user should feel like they are manipulating the research structure itself.
+* extraction-aware features
+* learning systems
+* exploration systems
+* integration auditing
+* test repair
+* product polish
 
----
+without each independently redesigning the core architecture.
 
-## 🔴 Priority 4 — Concept Threads / Thread Expedition
+The human role remained important.
 
-Turn the existing concept occurrence system into a visual research journey.
+I decided what Marginalia should be, which problems mattered, what behavior was acceptable, where generated intelligence belonged, and—equally importantly—where it did **not** belong.
 
-Improve:
+Codex accelerated implementation and made broader repository-level reasoning practical within the Build Week timeframe.
 
-* animated path,
-* selected occurrence,
-* section landmarks,
-* figure landmarks,
-* smooth source navigation,
-* readable hierarchy.
-
-This is one of the clearest examples of something a normal PDF reader cannot do.
+It did not make the product decisions for me.
 
 ---
 
-## 🔴 Priority 5 — Figure Detective
+# Skills and Agentic Workflow
 
-Use the actual scientific figure.
+The development process used reusable instructions and structured engineering workflows so agents could operate with more context than a single prompt.
 
-Improve:
+Instead of repeatedly explaining Marginalia's rules, the repository establishes invariants such as:
 
-* figure presentation,
-* spotlight interactions,
-* zoom,
-* region selection where verified,
-* subtle correct/incorrect motion,
-* exact source explanation.
+* preserve the Python/TypeScript boundary
+* normalize coordinates once
+* prioritize precision over recall
+* keep generated content optional
+* preserve source evidence
+* validate generated challenges
+* do not silently invent graph semantics
+* do not regress the existing reader
 
-Do not fabricate figure regions.
+This made agentic development significantly more reliable.
 
----
+The important insight was that better agents did not remove the need for architecture.
 
-## 🔴 Priority 6 — Evidence Hunt
-
-Make the PDF itself become the challenge.
-
-Improve:
-
-* prompt presentation,
-* active search state,
-* selected evidence interaction,
-* retry behavior,
-* source validation,
-* completion feedback.
-
-This strongly demonstrates Marginalia's evidence-literacy focus.
+**They made architecture more valuable.**
 
 ---
 
-## 🔴 Priority 7 — Research Investigator
+# Why This Is Technically Non-Trivial
 
-The Investigator should visually communicate that AI is actually investigating rather than instantly producing a paragraph.
+Marginalia is not a chat interface wrapped around a model call.
 
-Improve:
+It combines:
 
-```text
-Locating claim…
-        ↓
-Inspecting evidence…
-        ↓
-Checking Figure 3…
-        ↓
-Checking Table 2…
-        ↓
-Following citation…
-        ↓
-Building evidence chain…
-        ↓
-Interpretation
-```
+* PDF ingestion
+* document extraction
+* figure and table cropping
+* geometry normalization
+* browser PDF rendering
+* text-layer analysis
+* mention detection
+* citation resolution
+* source navigation
+* evidence contracts
+* graph construction
+* cross-paper relationships
+* persistent research objects
+* accessibility/reflow
+* concept analysis
+* challenge generation
+* challenge validation
+* multiple research interaction modes
 
-Then show:
+while maintaining a fundamental invariant:
 
-Evidence Graph + concise answer.
-
-Not:
-
-giant AI response.
-
----
-
-## 🟠 Priority 8 — Paper Map / Citation Graph
-
-These are major Explore-mode demo surfaces.
-
-Improve:
-
-* graph layout,
-* labels,
-* progressive expansion,
-* meaningful edge types,
-* paper selection,
-* exact navigation,
-* provenance.
-
-The user should understand WHY two nodes are connected.
-
----
-
-## 🟠 Priority 9 — Paper vs Paper
-
-Make comparison visual.
-
-Show two structures side-by-side.
-
-Allow:
-
-* concept correspondence,
-* evidence comparison,
-* method differences,
-* result differences,
-* source inspection.
-
-Do not lead with large comparison paragraphs.
-
----
-
-## 🟠 Priority 10 — Prerequisite Graph
-
-Make it feel like a professional research skill tree.
-
-Users should be able to understand:
-
-```text
-What do I need to understand first?
-```
-
-without reading another generated essay.
-
----
-
-# UI Quality Standard
-
-Every major visual should satisfy:
-
-```text
-NO overlapping nodes
-
-NO graph spaghetti
-
-NO giant AI paragraphs
-
-NO clipped controls
-
-NO broken responsive layout
-
-NO meaningless animation
-
-NO raw generated JSON
-
-NO inaccessible drag-only interactions
-
-NO semantic changes made purely for aesthetics
-```
-
-Marginalia should visually feel like:
-
-> **a premium scientific research environment**
-
-not:
-
-* a developer graph demo,
-* a generic AI chatbot,
-* a dashboard full of cards,
-* or a children's educational game.
-
-Motion should explain.
-
-Graphs should communicate.
-
-Games should teach.
-
-Evidence should remain inspectable.
-
----
-
-# Golden Demo Flow
-
-For demonstrations, prioritize this sequence:
-
-```text
-OPEN PAPER
-     ↓
-CLICK FIGURE REFERENCE
-     ↓
-FIGURE OPENS IN CONTEXT
-     ↓
-SELECT DIFFICULT PASSAGE
-     ↓
-VISUALIZE
-     ↓
-ANIMATED SCIENTIFIC DIAGRAM
-     ↓
-TRACE CONCEPT
-     ↓
-CONCEPT THREAD
-     ↓
-BUILD / PLAY
-     ↓
-RECONSTRUCT THE IDEA
-     ↓
-SHOW EVIDENCE
-     ↓
-EXACT ORIGINAL PDF SOURCE
-     ↓
-TRACE CLAIM
-     ↓
-EVIDENCE GRAPH
-     ↓
-ASK WHY
-     ↓
-RESEARCH INVESTIGATOR
-     ↓
-FOLLOW CITATION
-     ↓
-CROSS-PAPER EXPLORATION
-```
-
-This demonstrates the entire Marginalia philosophy without requiring every feature in the application to receive equal demo time.
+> **Every interaction should preserve the researcher's ability to return to the original evidence.**
 
 ---
 
 # What Makes Marginalia Different?
 
-Marginalia is not trying to become:
+There are many AI research tools.
 
-> another chatbot that reads PDFs.
+Most begin with:
 
-Its differentiation comes from combining:
+```text
+Paper
+  ↓
+LLM
+  ↓
+Summary / Chat
+```
 
-### Source-aware reading
+Marginalia begins somewhere else:
 
-Figures, tables, citations, and passages remain navigable.
+```text
+                  ┌── Figure
+                  │
+                  ├── Table
+                  │
+Paper ─ Evidence ─┼── Claim
+                  │
+                  ├── Concept
+                  │
+                  ├── Citation ──→ Paper
+                  │
+                  └── Experiment
+```
 
-### Evidence-native AI
+Then it asks:
 
-Generated interpretations are attached to source evidence.
+**What interfaces become possible if those relationships are interactive?**
 
-### Visual understanding
+That leads to a fundamentally different product.
 
-Complex research becomes diagrams, flows, timelines, and interactive structures.
+The output is not primarily another piece of generated text.
 
-### Active learning
-
-Users reconstruct concepts rather than only answering quizzes.
-
-### Research provenance
-
-Claims can be traced through evidence and prior work.
-
-### Cross-paper exploration
-
-Research relationships become explorable without silently turning semantic similarity into fact.
-
-### Accessibility
-
-Print-oriented research becomes a more usable modern reading environment.
-
-### Agentic investigation
-
-AI can traverse bounded research artifacts before producing an interpretation.
-
----
-
-# Guiding Principles
-
-## The paper remains the authority.
-
-AI supplements research. It does not replace it.
-
-## Every important generated interaction should return to evidence.
-
-Source navigation is part of the experience, not a footnote.
-
-## When confidence is low, render less.
-
-Precision matters more than generating something impressive-looking.
-
-## Literal and generated relationships are different.
-
-Never silently merge them.
-
-## Don't explain something with a paragraph when the learner can see it move.
-
-Use visual structure.
-
-## Don't ask what someone understood when they can rebuild the idea themselves.
-
-Use interaction.
-
-## Games should teach research reasoning.
-
-Not arbitrary gamification.
-
-## Motion should explain.
-
-Not decorate.
-
-## Complex research deserves nuance.
-
-Evidence relationships should preserve conditions, limitations, and uncertainty.
+The output is a better way to interact with research itself.
 
 ---
 
-# Vision
+# Designed for Researchers, Useful Far Beyond One Discipline
 
-Scientific papers should not feel like static archives.
+The initial audience for Marginalia is academic researchers and people who regularly work with scientific literature.
 
-They should behave like living knowledge environments.
+But the underlying problem is global.
 
-Marginalia is building toward a research experience where a reader can:
+Researchers around the world publish across disciplines, institutions, languages, and levels of specialization.
 
-**read the original work,**
+The volume of literature makes understanding connections increasingly difficult.
 
-**see difficult ideas move,**
+Marginalia does not claim to solve scientific discovery.
 
-**trace concepts through a paper,**
+It targets something narrower and practical:
 
-**reconstruct experiments,**
+**reduce the friction between encountering scientific evidence and actually understanding how it connects.**
 
-**investigate claims,**
+A researcher entering a neighboring field should be able to follow the lineage of an idea.
 
-**follow evidence to its origin,**
+A student beginning research should be able to trace unfamiliar concepts instead of immediately replacing the paper with a summary.
 
-**compare research across papers,**
+A researcher comparing methods should be able to put original figures and evidence beside one another.
 
-and always return to:
+A reader with accessibility needs should have an alternative to the rigid visual structure of a PDF.
 
-# the original evidence.
+The same evidence-first architecture can serve all of them.
 
 ---
 
-**Marginalia — read the research, trace the evidence, and interact with the ideas.**
+# Design Philosophy
+
+Marginalia follows five rules.
+
+### 1. Source before summary
+
+The original paper remains available and central.
+
+### 2. Precision before spectacle
+
+If a relationship cannot be established confidently, Marginalia would rather omit it.
+
+### 3. Generated ≠ authoritative
+
+Generated relationships and source relationships are visually and structurally distinct.
+
+### 4. Assistance should be optional
+
+A researcher can use Marginalia simply as a better reader.
+
+### 5. Every abstraction should have an escape hatch
+
+Graphs, learning activities, explanations, figures, and workspace objects should lead back to evidence.
+
+---
+
+# Failure Is Part of the Architecture
+
+Research software should be able to say “I don't know.”
+
+Marginalia explicitly defines failure behavior.
+
+If generation is unavailable, the deterministic reader continues working.
+
+If a challenge cannot be grounded, it is not displayed.
+
+If a citation cannot be resolved, it remains ordinary citation text.
+
+If a figure is unavailable, Marginalia does not create a figure-dependent interaction.
+
+If a prerequisite is inferred rather than stated, it is labeled as suggested.
+
+If reflow cannot confidently preserve reading order, the original PDF remains available.
+
+**Rendering less is better than fabricating certainty.**
+
+---
+
+# Built During OpenAI Build Week
+
+Marginalia was meaningfully expanded during OpenAI Build Week using Codex and GPT-5.6.
+
+The Build Week work transformed the project beyond its original figure-first PDF reader into a connected research environment spanning:
+
+* research exploration
+* source-grounded learning
+* interactive evidence
+* cross-paper navigation
+* research graphs
+* workspaces
+* accessibility
+* active learning
+
+The repository's commit history and Codex session history document that development.
+
+**Primary Codex Session ID:** `[CODEX SESSION ID]`
+
+---
+
+# Judging Marginalia
+
+If you only have a few minutes:
+
+### 1. Open the live application
+
+`[LIVE WEBSITE URL]`
+
+### 2. Watch the demo
+
+`[YOUTUBE DEMO URL]`
+
+### 3. Try the evidence-first reader
+
+Open a research paper and click a figure reference.
+
+### 4. Follow the network
+
+Open a citation, Paper Map, Figure Atlas, or Citation Graph.
+
+### 5. Select something difficult
+
+Use the selection actions to trace, visualize, explain, or interact with the concept.
+
+### 6. Follow it back
+
+Use **Show Evidence** or source navigation to return to the paper.
+
+That final step is the point.
+
+---
+
+# The Bigger Idea
+
+The web changed documents from isolated pages into networks.
+
+Scientific publishing largely did not.
+
+We still distribute some of humanity's most complex knowledge in a format where the connections between claims, figures, experiments, concepts, citations, and neighboring work must be reconstructed manually by every reader.
+
+Large language models make it tempting to solve that problem by skipping the document.
+
+Marginalia asks a different question:
+
+**What if AI helped us go deeper into the source instead?**
+
+Not another answer box.
+
+Not another paper summary.
+
+A research environment built around the evidence itself.
+
+---
+
+## Marginalia
+
+**Read the paper. Follow the evidence. See the connections.**
+
